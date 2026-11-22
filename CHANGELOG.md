@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The test buttons now live only on the General tab of settings.
+
 ## v0.1.0-beta
 
 First public beta.

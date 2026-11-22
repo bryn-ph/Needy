@@ -112,7 +112,6 @@ local function buildPages()
 	p:Slider("Scale", "scale", ns.Limits.scale[1], ns.Limits.scale[2], 0.05, function(v) return ("%d%%"):format(v * 100 + 0.5) end)
 	p:Slider("Bar width", "barWidth", ns.Limits.barWidth[1], ns.Limits.barWidth[2], 10, function(v) return tostring(v) end)
 	p:Buttons({
-		{ "Test rolls", function() ns.TestMode.Start(3) end, 120 },
 		{ "Reset position", function() ns.RollFrame.ResetPosition() end, 120 },
 	})
 
