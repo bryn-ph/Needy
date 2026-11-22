@@ -1,0 +1,2 @@
+# Development only: offline tests. Not needed to play.
+lupa==2.8

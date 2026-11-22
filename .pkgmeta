@@ -1,0 +1,17 @@
+package-as: NeedFrame
+
+# The addon lives in NeedFrame/ so the repo root can hold tooling; lift it to the top of the package.
+move-folders:
+  NeedFrame/NeedFrame: NeedFrame
+
+ignore:
+  - README.md
+  - LICENSE
+  - CHANGELOG.md
+  - CONTRIBUTING.md
+  - requirements-dev.txt
+  - tests
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown

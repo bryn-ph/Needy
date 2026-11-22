@@ -1,0 +1,27 @@
+## Interface: 16001
+## Title: NeedFrame
+## Notes: A cleaner need/greed/pass roll frame that remembers every roll of the run and hands out titles at the end.
+## Author: bryn-ph
+## Version: @project-version@
+## Category: Loot
+## IconTexture: Interface\Buttons\UI-GroupLoot-Dice-Up
+## SavedVariables: NeedFrameDB
+## AddonCompartmentFunc: NeedFrame_OnAddonCompartmentClick
+## X-License: MIT
+## X-Website: https://github.com/bryn-ph/NeedFrame
+
+Core\Init.lua
+Core\Defaults.lua
+Core\DB.lua
+Core\Titles.lua
+Core\LootSource.lua
+Core\Tracker.lua
+UI\Widgets.lua
+UI\RollFrame.lua
+UI\RollLog.lua
+UI\HistoryWindow.lua
+UI\SummaryWindow.lua
+Test\TestMode.lua
+Config\Settings.lua
+Config\MinimapButton.lua
+Config\Slash.lua

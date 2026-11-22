@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-dev.txt
+      - run: python tests/check.py
+      - run: python tests/smoke.py
+
+  # Builds the release zip without uploading it, so the package layout can be checked
+  # (download the artifact from the run) before a version is tagged.
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # When a release tag is pushed right after its commit, this run can already see the tag.
+      # The packager then refuses a dry run ("Found future tag ..., not packaging") and there's
+      # no zip to upload. The Release workflow builds that commit, so skip it here.
+      - name: Check for a release tag on this commit
+        id: tag
+        run: |
+          if tag=$(git describe --exact-match --tags HEAD 2>/dev/null); then
+            echo "::notice::$tag is on this commit; the Release workflow packages it."
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: BigWigsMods/packager@v2
+        if: steps.tag.outputs.tagged != 'true'
+        with:
+          args: -d
+      - uses: actions/upload-artifact@v4
+        if: steps.tag.outputs.tagged != 'true'
+        with:
+          name: needframe-package
+          path: .release/*.zip
+          include-hidden-files: true # .release is a dot-folder, which upload-artifact skips by default
+          if-no-files-found: error
