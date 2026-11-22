@@ -150,7 +150,7 @@ local function stopDrag(self)
 end
 
 local function createAnchor()
-	anchor = CreateFrame("Frame", "NeedFrameAnchor", UIParent, "BackdropTemplate")
+	anchor = CreateFrame("Frame", "NeedyAnchor", UIParent, "BackdropTemplate")
 	anchor:SetSize(ns.settings.barWidth, 30)
 	anchor:SetFrameStrata("HIGH")
 	anchor:SetClampedToScreen(true)

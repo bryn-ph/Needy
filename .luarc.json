@@ -3,10 +3,9 @@
     "runtime.version": "Lua 5.1",
     "workspace.ignoreDir": [".venv", ".release", "tests"],
     "diagnostics.globals": [
-        "NeedFrameDB",
-        "SLASH_NEEDFRAME1",
-        "SLASH_NEEDFRAME2",
-        "NeedFrame_OnAddonCompartmentClick",
-        "NeedFrameMinimapButton"
+        "NeedyDB",
+        "SLASH_NEEDY1",
+        "Needy_OnAddonCompartmentClick",
+        "NeedyMinimapButton"
     ]
 }

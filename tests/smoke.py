@@ -4,7 +4,7 @@ import pathlib, sys
 from lupa import lua51
 
 root = pathlib.Path(__file__).resolve().parents[1]
-addon = root / "NeedFrame"
+addon = root / "Needy"
 lua = lua51.LuaRuntime(unpack_returned_tuples=True)
 
 
@@ -127,23 +127,23 @@ C_Item = { GetItemInfoInstant = function(id) return id, "Armor", "Plate", "INVTY
 """
 
 lua.execute(MOCK)
-toc = (addon / "NeedFrame.toc").read_text(encoding="utf-8")
+toc = (addon / "Needy.toc").read_text(encoding="utf-8")
 files = [l.strip() for l in toc.splitlines() if l.strip() and not l.startswith("#")]
 ns = lua.eval("{}")
 for f in files:
     path = addon / f.replace("\\", "/")
     chunk = lua.eval("function(src, name) return assert(loadstring(src, name)) end")(path.read_text(encoding="utf-8"), "@" + f)
-    chunk("NeedFrame", ns)
+    chunk("Needy", ns)
 
 run = lua.eval("""function(ns)
   -- Fire ADDON_LOADED through the event frame (the first frame Init.lua created).
   local ef = __frames[1]
-  ef.__scripts.OnEvent(ef, "ADDON_LOADED", "NeedFrame")
+  ef.__scripts.OnEvent(ef, "ADDON_LOADED", "Needy")
   ef.__scripts.OnEvent(ef, "PLAYER_ENTERING_WORLD")
   assert(ns.settings and ns.settings.replaceBlizzard == true, "settings loaded")
 
   -- Live test: three bars appear, we click Need on the first, everything resolves.
-  SlashCmdList.NEEDFRAME("test")
+  SlashCmdList.NEEDY("test")
   __flush(0.5)
   local rolls = 0
   for id, roll in pairs(ns.LootSource.All()) do rolls = rolls + 1 end
@@ -155,18 +155,18 @@ run = lua.eval("""function(ns)
   __flush(40)
   local s = ns.Tracker.testSession
   assert(s and #s.drops == 3, "three drops recorded")
-  assert(_G.NeedFrameLogTab:IsShown(), "roll log tab shows during a run")
-  assert(not _G.NeedFrameLog:IsShown(), "roll log starts tucked away")
+  assert(_G.NeedyLogTab:IsShown(), "roll log tab shows during a run")
+  assert(not _G.NeedyLog:IsShown(), "roll log starts tucked away")
   ns.RollLog.Toggle()
-  assert(_G.NeedFrameLog:IsShown(), "clicking the tab opens the log")
+  assert(_G.NeedyLog:IsShown(), "clicking the tab opens the log")
   -- Bars animate their results: run their OnUpdates past the reveal.
   for _, f in ipairs(__frames) do
     local u = f.__scripts.OnUpdate
     if u and f.roll then u(f, 0.1) end
   end
-  SlashCmdList.NEEDFRAME("log")
-  assert(not _G.NeedFrameLogTab:IsShown(), "/nf log hides it")
-  SlashCmdList.NEEDFRAME("log")
+  SlashCmdList.NEEDY("log")
+  assert(not _G.NeedyLogTab:IsShown(), "/needy log hides it")
+  SlashCmdList.NEEDY("log")
   for _, d in ipairs(s.drops) do
     assert(d.winner or d.allPassed, "every test drop resolved")
   end
@@ -176,15 +176,15 @@ run = lua.eval("""function(ns)
     assert(d.rolls.Tester.choice == "need", "our choice recorded")
     assert(type(d.rolls.Tester.roll) == "number", "we got a roll number")
   end
-  SlashCmdList.NEEDFRAME("test end")
+  SlashCmdList.NEEDY("test end")
   assert(ns.Tracker.testSession == nil, "test session finished")
-  assert(not _G.NeedFrameLogTab:IsShown(), "roll log hides when the run ends")
-  assert(_G.NeedFrameSummary and _G.NeedFrameSummary:IsShown(), "summary window shown")
+  assert(not _G.NeedyLogTab:IsShown(), "roll log hides when the run ends")
+  assert(_G.NeedySummary and _G.NeedySummary:IsShown(), "summary window shown")
 
   -- Simulated run: awards include the obvious ones.
-  _G.NeedFrameSummary:Hide()
+  _G.NeedySummary:Hide()
   math.randomseed(7)
-  SlashCmdList.NEEDFRAME("test run")
+  SlashCmdList.NEEDY("test run")
   __flush(1)
   local last = ns.Tracker.lastTest
   assert(last and #last.drops == 12, "simulated run has 12 drops")
@@ -195,14 +195,14 @@ run = lua.eval("""function(ns)
   assert(keys.saint, "The Saint awarded")
   local lines = ns.SummaryWindow.AnnounceLines(last)
   assert(#lines == #awards + 1, "one chat line per award plus header")
-  SlashCmdList.NEEDFRAME("summary")
-  SlashCmdList.NEEDFRAME("history")
-  SlashCmdList.NEEDFRAME("options")
-  assert(_G.NeedFrameSettings:IsShown(), "settings window opens")
-  assert(_G.NeedFrameMinimapButton:IsShown(), "minimap icon shown")
-  SlashCmdList.NEEDFRAME("minimap")
-  assert(not _G.NeedFrameMinimapButton:IsShown(), "/nf minimap hides it")
-  SlashCmdList.NEEDFRAME("help")
+  SlashCmdList.NEEDY("summary")
+  SlashCmdList.NEEDY("history")
+  SlashCmdList.NEEDY("options")
+  assert(_G.NeedySettings:IsShown(), "settings window opens")
+  assert(_G.NeedyMinimapButton:IsShown(), "minimap icon shown")
+  SlashCmdList.NEEDY("minimap")
+  assert(not _G.NeedyMinimapButton:IsShown(), "/needy minimap hides it")
+  SlashCmdList.NEEDY("help")
 
   -- Roster fitting: a fake fontstring whose width is 6px per visible character.
   local fs = setmetatable({}, { __index = function(t, k)
@@ -224,8 +224,8 @@ run = lua.eval("""function(ns)
   assert(mid:find("Player") and mid:find("+"), "medium line keeps top names with +N: " .. mid)
 
   -- Unlock, drag the handle, centre it, lock.
-  SlashCmdList.NEEDFRAME("unlock")
-  local a = _G.NeedFrameAnchor
+  SlashCmdList.NEEDY("unlock")
+  local a = _G.NeedyAnchor
   a.__scripts.OnMouseDown(a, "LeftButton")
   a.__scripts.OnUpdate(a, 0.1)
   a.__scripts.OnMouseUp(a)

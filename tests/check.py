@@ -3,7 +3,7 @@ import pathlib, sys
 from lupa import lua51
 
 root = pathlib.Path(__file__).resolve().parents[1]
-addon = root / "NeedFrame"
+addon = root / "Needy"
 lua = lua51.LuaRuntime(unpack_returned_tuples=True)
 check = lua.eval("function(src, name) local f, err = loadstring(src, name); return f ~= nil, err end")
 

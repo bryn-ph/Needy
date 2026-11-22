@@ -11,11 +11,11 @@ end
 local function help()
 	ns.Print("commands:")
 	for _, c in ipairs(order) do
-		print(("  |cffffd100/nf %s|r - %s"):format(c.name, c.usage))
+		print(("  |cffffd100/needy %s|r - %s"):format(c.name, c.usage))
 	end
 end
 
-add("history", "show the roll history (also just /nf)", function()
+add("history", "show the roll history (also just /needy)", function()
 	ns.HistoryWindow.Toggle()
 end)
 
@@ -43,7 +43,7 @@ add("test", "[more | end | run | keep] try it out with a fake party", function(a
 		ns.settings.keepTestSessions = not ns.settings.keepTestSessions
 		ns.Print("Test runs will " .. (ns.settings.keepTestSessions and "be saved to" or "not be saved to") .. " history.")
 	else
-		ns.Print("/nf test, /nf test more, /nf test end, /nf test run, /nf test keep")
+		ns.Print("/needy test, /needy test more, /needy test end, /needy test run, /needy test keep")
 	end
 end)
 
@@ -69,11 +69,11 @@ add("lock", "lock the roll bars in place", function()
 	ns.RollFrame.ApplySettings()
 end)
 
-add("blizzard", "switch between NeedFrame's and Blizzard's roll frames", function()
+add("blizzard", "switch between Needy's and Blizzard's roll frames", function()
 	ns.settings.replaceBlizzard = not ns.settings.replaceBlizzard
 	ns.RollFrame.ApplySettings()
 	ns.Print(ns.settings.replaceBlizzard and "Blizzard's roll frames are hidden." or
-		"Blizzard's roll frames are back (NeedFrame's bars still show too).")
+		"Blizzard's roll frames are back (Needy's bars still show too).")
 end)
 
 add("options", "open the settings (also: left-click the minimap icon)", function()
@@ -83,7 +83,7 @@ end)
 add("minimap", "show or hide the minimap icon", function()
 	ns.settings.minimapShow = not ns.settings.minimapShow
 	ns.MinimapButton.Update()
-	ns.Print("Minimap icon " .. (ns.settings.minimapShow and "shown." or "hidden. /nf minimap brings it back."))
+	ns.Print("Minimap icon " .. (ns.settings.minimapShow and "shown." or "hidden. /needy minimap brings it back."))
 end)
 
 add("debug", "toggle debug output", function()
@@ -93,7 +93,7 @@ end)
 
 add("reset", "forget all saved runs and settings", function(arg)
 	if arg ~= "confirm" then
-		ns.Print("This deletes every saved run and resets settings. Type |cffffd100/nf reset confirm|r to go ahead.")
+		ns.Print("This deletes every saved run and resets settings. Type |cffffd100/needy reset confirm|r to go ahead.")
 		return
 	end
 	ns.DB.Reset()
@@ -107,9 +107,8 @@ end)
 
 add("help", "this list", help)
 
-SLASH_NEEDFRAME1 = "/needframe"
-SLASH_NEEDFRAME2 = "/nf"
-SlashCmdList.NEEDFRAME = function(msg)
+SLASH_NEEDY1 = "/needy"
+SlashCmdList.NEEDY = function(msg)
 	local cmd, rest = (msg or ""):match("^%s*(%S*)%s*(.-)%s*$")
 	cmd = cmd:lower()
 	if cmd == "" then

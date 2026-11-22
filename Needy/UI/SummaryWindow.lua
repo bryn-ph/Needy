@@ -35,7 +35,7 @@ end
 function SummaryWindow.AnnounceLines(session)
 	local awards = ns.Titles.Compute(session)
 	local lines = {}
-	table.insert(lines, ("NeedFrame awards for %s%s:"):format(
+	table.insert(lines, ("Needy awards for %s%s:"):format(
 		ns.HistoryWindow.SessionLabel(session), session.isTest and " (test run)" or ""))
 	for _, a in ipairs(awards) do
 		local line = ("%s: %s (%s)"):format(a.title, plainNames(a.players), a.text)
@@ -157,7 +157,7 @@ local function setCard(card, award, i, width)
 end
 
 local function create()
-	win = W.Window("NeedFrameSummary", "Run Awards", WIDTH, HEIGHT)
+	win = W.Window("NeedySummary", "Run Awards", WIDTH, HEIGHT)
 	win:SetPoint("CENTER", 240, 30)
 	local c = win.content
 

@@ -138,7 +138,7 @@ end
 -- Frames ----------------------------------------------------------------------------------------
 
 local function createTab()
-	tab = CreateFrame("Button", "NeedFrameLogTab", UIParent, "BackdropTemplate")
+	tab = CreateFrame("Button", "NeedyLogTab", UIParent, "BackdropTemplate")
 	tab:SetSize(TAB_SIZE, TAB_SIZE)
 	tab:SetFrameStrata("MEDIUM")
 	tab:SetClampedToScreen(true)
@@ -215,7 +215,7 @@ local function createTab()
 end
 
 local function createPanel()
-	panel = CreateFrame("Frame", "NeedFrameLog", tab, "BackdropTemplate")
+	panel = CreateFrame("Frame", "NeedyLog", tab, "BackdropTemplate")
 	panel:SetWidth(PANEL_WIDTH)
 	W.Skin(panel)
 	W.Shadow(panel, 4)

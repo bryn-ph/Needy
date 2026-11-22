@@ -219,7 +219,7 @@ local function startRoll(info)
 	C_Timer.After(ROLL_SECONDS, function() timeout(drop) end)
 end
 
--- /nf test: start (or add to) a live test run with a fake party.
+-- /needy test: start (or add to) a live test run with a fake party.
 function TestMode.Start(count)
 	if not ns.Tracker.testSession then
 		party = makeParty({ "normal", "hoarder", "saint", "goblin" })
@@ -231,7 +231,7 @@ function TestMode.Start(count)
 		for _, m in ipairs(party) do
 			if not m.isSelf then table.insert(names, ns.ColorName(m.name, m.class)) end
 		end
-		ns.Print("Test run started with " .. table.concat(names, ", ") .. ". Roll away, then |cffffd100/nf test end|r.")
+		ns.Print("Test run started with " .. table.concat(names, ", ") .. ". Roll away, then |cffffd100/needy test end|r.")
 	end
 	loadItems(count or 3, function(infos)
 		for _, info in ipairs(infos) do
@@ -250,11 +250,11 @@ function TestMode.Choose(roll, choice)
 	maybeResolve(drop)
 end
 
--- /nf test end
+-- /needy test end
 function TestMode.End()
 	local s = ns.Tracker.testSession
 	if not s then
-		ns.Print("No test run in progress. |cffffd100/nf test|r starts one.")
+		ns.Print("No test run in progress. |cffffd100/needy test|r starts one.")
 		return
 	end
 	for id, drop in pairs(drops) do
@@ -266,7 +266,7 @@ function TestMode.End()
 	ns.Tracker.Finish(s)
 end
 
--- /nf test run: a whole fake dungeon in one go, with a party built to earn every title.
+-- /needy test run: a whole fake dungeon in one go, with a party built to earn every title.
 function TestMode.Run(dropCount)
 	dropCount = dropCount or 12
 	local runParty = makeParty({ "hoarder", "saint", "goblin", "sleepy", "normal" })

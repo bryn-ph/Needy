@@ -1,5 +1,5 @@
--- NeedFrame's settings window: a sidebar of sections on the left, controls on the right.
--- Opened from the minimap icon, /nf options, or the launcher in the game's Settings > AddOns.
+-- Needy's settings window: a sidebar of sections on the left, controls on the right.
+-- Opened from the minimap icon, /needy options, or the launcher in the game's Settings > AddOns.
 local _, ns = ...
 
 local SettingsWindow = {}
@@ -97,7 +97,7 @@ end
 local function buildPages()
 	-- Roll frame ---------------------------------------------------------------
 	local p = newPage("rolls", "Roll Frame", "The bars that pop up when an item is up for need, greed or pass.")
-	p:Toggle("Replace Blizzard's roll frames", "Hide the default loot roll popups and use NeedFrame's bars.", "replaceBlizzard")
+	p:Toggle("Replace Blizzard's roll frames", "Hide the default loot roll popups and use Needy's bars.", "replaceBlizzard")
 	p:Toggle("Animations", "Bars pop in; results spin a die, then the winner lands with a flash.", "animations")
 	p:Toggle("Lock position", "Turn off to get a handle you can drag the bars around with. They snap to the centre of the screen, like Edit Mode.", "locked")
 	p:Segmented("New bars stack", { { false, "Downwards" }, { true, "Upwards" } },
@@ -120,7 +120,7 @@ local function buildPages()
 	})
 
 	-- End of run ---------------------------------------------------------------
-	p = newPage("awards", "End of Run", "When you leave the instance, NeedFrame hands out titles: Loot Hoarder, Unlucky, The Saint and friends.")
+	p = newPage("awards", "End of Run", "When you leave the instance, Needy hands out titles: Loot Hoarder, Unlucky, The Saint and friends.")
 	p:Toggle("Show the awards window", "Pops up the Run Awards when the run ends.", "showSummary")
 	p:Buttons({
 		{ "Preview awards", function() ns.TestMode.Run() end, 130, "accent" },
@@ -131,7 +131,7 @@ local function buildPages()
 	p:Toggle("Minimap icon", "Left-click opens settings, right-click opens the roll history.", "minimapShow",
 		function() ns.MinimapButton.Update() end)
 	p:Slider("Runs kept in history", "historyLimit", ns.Limits.historyLimit[1], ns.Limits.historyLimit[2], 1, function(v) return v .. " runs" end)
-	p:Toggle("Keep test runs in history", "Save /nf test runs alongside real ones.", "keepTestSessions")
+	p:Toggle("Keep test runs in history", "Save /needy test runs alongside real ones.", "keepTestSessions")
 	p:Section("Testing")
 	p:Buttons({
 		{ "Test rolls", function() ns.TestMode.Start(3) end, 110 },
@@ -156,7 +156,7 @@ local function buildPages()
 			end
 			resetArmed = false
 			self:SetText("Reset all data")
-			SlashCmdList.NEEDFRAME("reset confirm")
+			SlashCmdList.NEEDY("reset confirm")
 			SettingsWindow.Refresh()
 		end, 170 },
 	})
@@ -184,7 +184,7 @@ local function selectPage(key)
 end
 
 local function create()
-	win = W.Window("NeedFrameSettings", "NeedFrame Settings", WIDTH, HEIGHT)
+	win = W.Window("NeedySettings", "Needy Settings", WIDTH, HEIGHT)
 	win:SetPoint("CENTER")
 	local c = win.content
 
@@ -225,7 +225,7 @@ local function create()
 
 	local version = W.Text(side, "tiny")
 	version:SetPoint("BOTTOMLEFT", 14, 12)
-	version:SetText("NeedFrame " .. W.Version() .. "\n|cff6b6b75/nf help for commands|r")
+	version:SetText("Needy " .. W.Version() .. "\n|cff6b6b75/needy help for commands|r")
 
 	buildPages()
 	selectPage("rolls")
@@ -258,13 +258,13 @@ function SettingsWindow.Register()
 	local launcher = CreateFrame("Frame")
 	local title = launcher:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	title:SetPoint("TOPLEFT", 16, -16)
-	title:SetText("NeedFrame")
-	local open = W.Button(launcher, "Open NeedFrame settings", 200, 26, "accent")
+	title:SetText("Needy")
+	local open = W.Button(launcher, "Open Needy settings", 200, 26, "accent")
 	open:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -12)
 	open:SetScript("OnClick", function() SettingsWindow.Show() end)
 	local hint = launcher:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	hint:SetPoint("TOPLEFT", open, "BOTTOMLEFT", 0, -10)
-	hint:SetText("Also on the minimap icon, or type /nf help.")
-	local category = Settings.RegisterCanvasLayoutCategory(launcher, "NeedFrame")
+	hint:SetText("Also on the minimap icon, or type /needy help.")
+	local category = Settings.RegisterCanvasLayoutCategory(launcher, "Needy")
 	Settings.RegisterAddOnCategory(category)
 end

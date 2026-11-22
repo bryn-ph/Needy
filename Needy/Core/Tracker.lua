@@ -7,7 +7,7 @@ ns.Tracker = Tracker
 local RESUME_WINDOW = 30 * 60 -- seconds: a /reload or quick relog inside this keeps the same session
 
 Tracker.session = nil -- the real run in progress
-Tracker.testSession = nil -- the /nf test run in progress
+Tracker.testSession = nil -- the /needy test run in progress
 
 function Tracker.NewSession(fields)
 	local s = {

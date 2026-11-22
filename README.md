@@ -1,8 +1,8 @@
-# NeedFrame
+# Needy
 
-A loot roll overhaul for **WoW: Forever**. NeedFrame replaces the need/greed/pass popups with clean, modern roll bars, keeps a record of every roll in the dungeon or raid, and hands out (mostly unflattering) titles when the run is over.
+A loot roll overhaul for **WoW: Forever**. Needy replaces the need/greed/pass popups with clean, modern roll bars, keeps a record of every roll in the dungeon or raid, and hands out (mostly unflattering) titles when the run is over.
 
-> **Beta.** Please [report issues here](https://github.com/bryn-ph/NeedFrame/issues).
+> **Beta.** Please [report issues here](https://github.com/bryn-ph/Needy/issues).
 
 ## Features
 
@@ -15,25 +15,25 @@ A loot roll overhaul for **WoW: Forever**. NeedFrame replaces the need/greed/pas
 
 ## Usage
 
-NeedFrame works on its own: the next time something drops in a group, the roll bars appear.
+Needy works on its own: the next time something drops in a group, the roll bars appear.
 
-- **Minimap icon**: left-click for settings, right-click for the roll history. Settings are also under *Options → AddOns → NeedFrame*.
-- **Move the roll bars**: switch off *Lock position* in settings, or type `/nf unlock`. Drag the gold handle; it snaps to the centre of the screen like Edit Mode. Click **Done** when finished.
-- **Try it out**: `/nf test` brings up test rolls with a fake party; `/nf test end` finishes the test run and shows its awards.
+- **Minimap icon**: left-click for settings, right-click for the roll history. Settings are also under *Options → AddOns → Needy*.
+- **Move the roll bars**: switch off *Lock position* in settings, or type `/needy unlock`. Drag the gold handle; it snaps to the centre of the screen like Edit Mode. Click **Done** when finished.
+- **Try it out**: `/needy test` brings up test rolls with a fake party; `/needy test end` finishes the test run and shows its awards.
 
 | Command | |
 |---|---|
-| `/nf` | Roll history |
-| `/nf options` | Settings |
-| `/nf summary` | Awards for the current or last run |
-| `/nf end` | End the current run now |
-| `/nf test` | Test rolls with a fake party (`more` adds rolls, `end` finishes, `run` simulates a whole dungeon) |
-| `/nf unlock` / `/nf lock` | Move the roll bars |
-| `/nf log` | Show or hide the Roll Log tab |
-| `/nf anim` | Animations on or off |
-| `/nf blizzard` | Bring back Blizzard's roll popups |
-| `/nf minimap` | Show or hide the minimap icon |
-| `/nf help` | All commands |
+| `/needy` | Roll history |
+| `/needy options` | Settings |
+| `/needy summary` | Awards for the current or last run |
+| `/needy end` | End the current run now |
+| `/needy test` | Test rolls with a fake party (`more` adds rolls, `end` finishes, `run` simulates a whole dungeon) |
+| `/needy unlock` / `/needy lock` | Move the roll bars |
+| `/needy log` | Show or hide the Roll Log tab |
+| `/needy anim` | Animations on or off |
+| `/needy blizzard` | Bring back Blizzard's roll popups |
+| `/needy minimap` | Show or hide the minimap icon |
+| `/needy help` | All commands |
 
 ## Known limitations
 

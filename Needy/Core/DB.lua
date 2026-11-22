@@ -40,10 +40,10 @@ local function validSession(s)
 end
 
 function DB.Init()
-	if type(NeedFrameDB) ~= "table" then
-		NeedFrameDB = {}
+	if type(NeedyDB) ~= "table" then
+		NeedyDB = {}
 	end
-	local db = NeedFrameDB
+	local db = NeedyDB
 	db.version = CURRENT_VERSION
 	db.settings = cleanSettings(db.settings)
 

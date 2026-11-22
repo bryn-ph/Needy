@@ -1,8 +1,8 @@
-package-as: NeedFrame
+package-as: Needy
 
-# The addon lives in NeedFrame/ so the repo root can hold tooling; lift it to the top of the package.
+# The addon lives in Needy/ so the repo root can hold tooling; lift it to the top of the package.
 move-folders:
-  NeedFrame/NeedFrame: NeedFrame
+  Needy/Needy: Needy
 
 ignore:
   - README.md

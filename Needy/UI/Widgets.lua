@@ -1,4 +1,4 @@
--- NeedFrame's look: a flat, dark, modern skin with warm gold accents, plus the widgets built from it
+-- Needy's look: a flat, dark, modern skin with warm gold accents, plus the widgets built from it
 -- (windows, buttons, toggles, sliders, segmented pickers, scroll areas, tooltips).
 local addonName, ns = ...
 
@@ -46,14 +46,14 @@ local function font(name, size, color, flags)
 end
 
 Widgets.Fonts = {
-	big = font("NeedFrameFontBig", 17, C.text),
-	title = font("NeedFrameFontTitle", 13, C.text),
-	heading = font("NeedFrameFontHeading", 12, C.accent),
-	body = font("NeedFrameFontBody", 12, C.text),
-	small = font("NeedFrameFontSmall", 11, C.text),
-	muted = font("NeedFrameFontMuted", 11, C.muted),
-	tiny = font("NeedFrameFontTiny", 10, C.muted),
-	badge = font("NeedFrameFontBadge", 10, { 0.08, 0.06, 0.02 }),
+	big = font("NeedyFontBig", 17, C.text),
+	title = font("NeedyFontTitle", 13, C.text),
+	heading = font("NeedyFontHeading", 12, C.accent),
+	body = font("NeedyFontBody", 12, C.text),
+	small = font("NeedyFontSmall", 11, C.text),
+	muted = font("NeedyFontMuted", 11, C.muted),
+	tiny = font("NeedyFontTiny", 10, C.muted),
+	badge = font("NeedyFontBadge", 10, { 0.08, 0.06, 0.02 }),
 }
 
 -- Full width of a fontstring's text, ignoring any width it's been squeezed to.

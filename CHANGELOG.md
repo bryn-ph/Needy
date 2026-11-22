@@ -9,5 +9,5 @@ First public beta.
 - **Roll Log**: a dice tab on screen during a run that slides out this run's drops, winners and rolls.
 - **Roll History** of the current and past runs.
 - **Run Awards** when you leave the instance, with a button to post them to group chat.
-- **Settings** window (minimap icon, `/nf options`, or *Options → AddOns*). Unlocked roll bars snap to the centre of the screen.
-- **Test mode**: `/nf test` for fake rolls with a fake party, `/nf test run` to simulate a whole dungeon.
+- **Settings** window (minimap icon, `/needy options`, or *Options → AddOns*). Unlocked roll bars snap to the centre of the screen.
+- **Test mode**: `/needy test` for fake rolls with a fake party, `/needy test run` to simulate a whole dungeon.

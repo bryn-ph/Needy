@@ -1,4 +1,4 @@
--- Turns the game's loot roll API + C_LootHistory into NeedFrame messages (see Core/Init.lua).
+-- Turns the game's loot roll API + C_LootHistory into Needy messages (see Core/Init.lua).
 -- Checked against Gethe/wow-ui-source "forever": Blizzard_UIPanels_Game/Mainline/GroupLootFrame.lua
 -- and Blizzard_APIDocumentationGenerated/LootHistoryDocumentation.lua.
 local _, ns = ...
@@ -118,7 +118,7 @@ local function encounterName(encounterID)
 	end
 end
 
--- Normalise one EncounterLootDropInfo into a NeedFrame drop.
+-- Normalise one EncounterLootDropInfo into a Needy drop.
 function LootSource.NormalizeDrop(encounterID, info)
 	if not info or ns.IsSecret(info.itemHyperlink) then return nil end
 	local drop = {

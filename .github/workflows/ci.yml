@@ -45,7 +45,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: steps.tag.outputs.tagged != 'true'
         with:
-          name: needframe-package
+          name: needy-package
           path: .release/*.zip
           include-hidden-files: true # .release is a dot-folder, which upload-artifact skips by default
           if-no-files-found: error

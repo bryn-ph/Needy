@@ -4,12 +4,12 @@ ns.name = addonName
 ns.debug = false
 
 function ns.Print(...)
-	print("|cffffd100NeedFrame|r", ...)
+	print("|cffffd100Needy|r", ...)
 end
 
 function ns.Debug(...)
 	if ns.debug then
-		print("|cff888888NeedFrame debug|r", ...)
+		print("|cff888888Needy debug|r", ...)
 	end
 end
 
@@ -92,6 +92,6 @@ ns.On("ADDON_LOADED", function(_, name)
 end)
 
 -- Referenced by the TOC's AddonCompartmentFunc.
-function NeedFrame_OnAddonCompartmentClick()
+function Needy_OnAddonCompartmentClick()
 	ns.SettingsWindow.Toggle()
 end

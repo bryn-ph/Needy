@@ -1,14 +1,14 @@
 ## Interface: 16001
-## Title: NeedFrame
+## Title: Needy
 ## Notes: A cleaner need/greed/pass roll frame that remembers every roll of the run and hands out titles at the end.
 ## Author: bryn-ph
 ## Version: @project-version@
 ## Category: Loot
 ## IconTexture: Interface\Buttons\UI-GroupLoot-Dice-Up
-## SavedVariables: NeedFrameDB
-## AddonCompartmentFunc: NeedFrame_OnAddonCompartmentClick
+## SavedVariables: NeedyDB
+## AddonCompartmentFunc: Needy_OnAddonCompartmentClick
 ## X-License: MIT
-## X-Website: https://github.com/bryn-ph/NeedFrame
+## X-Website: https://github.com/bryn-ph/Needy
 
 Core\Init.lua
 Core\Defaults.lua

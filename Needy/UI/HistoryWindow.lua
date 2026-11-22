@@ -151,7 +151,7 @@ end
 -- Window ------------------------------------------------------------------------------------------
 
 local function create()
-	win = W.Window("NeedFrameHistory", "Roll History", WIDTH, HEIGHT)
+	win = W.Window("NeedyHistory", "Roll History", WIDTH, HEIGHT)
 	win:SetPoint("CENTER", -150, 30)
 	local c = win.content
 
@@ -253,7 +253,7 @@ function HistoryWindow.Refresh()
 		win.heading:SetText("No runs yet")
 		win.position:SetText("")
 		for _, chip in ipairs(win.chips) do chip:Hide() end
-		win.empty:SetText("Rolls are recorded while you're in a dungeon or raid.\n\nTry |cffffc747/nf test|r to see NeedFrame in action.")
+		win.empty:SetText("Rolls are recorded while you're in a dungeon or raid.\n\nTry |cffffc747/needy test|r to see Needy in action.")
 		win.empty:Show()
 		return
 	end
