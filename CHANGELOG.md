@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v0.2.0-beta
+
+Fully restart the game after updating: this version adds new files, which `/reload` doesn't load.
 
 - **Run Stats**: a second tab on the end-of-run report (now called the Run Report), with the run's totals and a line per player: items won, needs, greeds, passes, missed rolls, and average, highest and lowest roll.
 - **Luck**: the Run Stats show how many items each player won against how many even odds would have given them.
