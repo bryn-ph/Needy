@@ -111,6 +111,7 @@ function hooksecurefunc(tbl, key, hook)
   local orig = tbl[key]
   tbl[key] = function(...) orig(...); hook(...) end
 end
+function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
 SOUNDKIT = { UI_LEGENDARY_LOOT_TOAST = 63971 }
 __sounds = {}
 function PlaySound(id, channel) __sounds[#__sounds + 1] = id end
@@ -431,6 +432,80 @@ run = lua.eval("""function(ns)
   listed.remove:Click()
   assert(not ns.Wishlist.Has(4242) and not listed:IsShown(), "the X takes it off the list")
   assert(not tagged.tag:IsShown(), "and off the history tag")
+  -- Bar flash: off until ticked, then a halo on each new bar (gold for the wishlist) that ends by itself.
+  assert(ns.settings.flashBars == false, "bar flash is off by default")
+  local box
+  for _, f in ipairs(__frames) do
+    if f.label and f.label.GetText and f.label:GetText() == "Flash new roll bars" then box = f end
+  end
+  assert(box, "bar flash is in settings")
+  local function tick(on)
+    box.GetChecked = function() return on end
+    box:Click()
+  end
+  local function finish(halo)
+    for _ = 1, 40 do if halo:IsShown() then halo.__scripts.OnUpdate(halo, 0.1) end end
+  end
+  local quiet = roll(9100, 110)
+  assert(not quiet.flash, "nothing is built while it's off")
+  tick(true)
+  assert(ns.settings.flashBars and quiet.flash and quiet.flash:IsShown(), "ticking it flashes the bars already up")
+  finish(quiet.flash)
+  assert(not quiet.flash:IsShown(), "the flash ends by itself")
+  local plainBar = roll(9101, 111)
+  assert(plainBar.flash:IsShown() and plainBar.flash.duration < 2, "a new bar flashes")
+  ns.Wishlist.Toggle(222, "Wanted")
+  local wishBar = roll(9102, 222)
+  assert(wishBar.flash:IsShown() and wishBar.flash.duration > 2, "a wishlist bar flashes longer, in gold")
+  ns.RollFrame.Release(wishBar)
+  assert(not wishBar.flash:IsShown(), "a released bar takes its flash with it")
+  tick(false)
+  assert(not plainBar.flash:IsShown(), "unticking stops it")
+  local after = roll(9103, 333)
+  assert(not (after.flash and after.flash:IsShown()), "unticked, new bars don't flash")
+  ns.Wishlist.Clear()
+
+  -- The big number is yours, labelled, even when the history names you with your realm; the winner is on
+  -- the result line. Pass, and it's the winner's number. Your number arriving late is waited for.
+  ns.settings.animations = true
+  local nextID = 9200
+  local function result(rolls, winner, later)
+    nextID = nextID + 1
+    local link = "|Hitem:" .. nextID .. "::::|h[Thing]|h"
+    local bar = roll(nextID, nextID)
+    local drop = { key = "me" .. nextID, link = link, winner = winner, rolls = rolls }
+    ns.Fire("DROP_UPDATE", drop)
+    if later then later(drop, bar) end
+    __advance(3.5)
+    ns.RollFrame.UpdateBar(bar)
+    __advance(0.1)
+    ns.RollFrame.UpdateBar(bar)
+    return bar
+  end
+  local function shown(bar)
+    return bar.rollAnim.RollNumber:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):match("^(%d+)|r$"), bar.rollLabel:GetText(), bar.rollLabel:IsShown()
+  end
+  local lost = result({ ["Tester-Realm"] = { choice = "greed", roll = 45, isSelf = true }, Grim = { choice = "need", roll = 87 } }, "Grim")
+  local n, label, visible = shown(lost)
+  assert(n == "45" and label == "You" and visible, "your number, labelled You: " .. tostring(n) .. " " .. tostring(label))
+  assert(lost.status:GetText():find("Won by") and lost.status:GetText():find("87"), "the winner's roll is on the line")
+  assert(lost.statusWidth <= ns.settings.barWidth - 55 - 112, "the result line stops short of the number")
+  local passed = result({ Tester = { choice = "pass" }, Grim = { choice = "need", roll = 87 } }, "Grim")
+  n, label = shown(passed)
+  assert(n == "87" and label == "Winner", "no roll of yours: the winner's, labelled Winner")
+  local late = result({ Tester = { choice = "need" }, Grim = { choice = "need", roll = 87 } }, "Grim", function(drop, bar)
+    assert(bar.status:GetText():find("Rolling"), "waits for your number")
+    drop.rolls.Tester.roll = 12
+    ns.Fire("DROP_UPDATE", drop)
+  end)
+  n, label = shown(late)
+  assert(n == "12" and label == "You", "your late number is shown")
+  local never = result({ Tester = { choice = "need" }, Grim = { choice = "need", roll = 87 } }, "Grim")
+  n, label = shown(never)
+  assert(n == "87" and label == "Winner", "gives up on a number that never comes")
+  local st = ns.Titles.Stats({ drops = { { key = "z", winner = "Grim", rolls = {
+    ["Tester-Realm"] = { choice = "need", roll = 3, isSelf = true }, Grim = { choice = "need", roll = 90 } } } } })
+  assert(st["Tester-Realm"].isSelf and not st.Grim.isSelf, "stats know which player is you")
   return #awards
 end""")
 try:

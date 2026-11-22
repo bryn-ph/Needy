@@ -22,6 +22,7 @@ Core\Wishlist.lua
 UI\Widgets.lua
 UI\WishlistGlow.lua
 UI\WishlistPanel.lua
+UI\BarFlash.lua
 UI\RollFrame.lua
 UI\RollLog.lua
 UI\HistoryWindow.lua

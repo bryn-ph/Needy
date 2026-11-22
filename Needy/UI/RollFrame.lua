@@ -15,6 +15,7 @@ local RESULT_LINGER = 1.8 -- seconds a finished bar stays up after the result sh
 local ANIM_SPEED = 0.6 -- Blizzard's need-roll animation, played a little faster (1 = their timing)
 local REVEAL_TIME = 3.4 * ANIM_SPEED -- when the number lands in that animation
 local WISH_PREFIX_WIDTH = 180 -- narrower status lines leave the word out; the glow says it
+local MINE_WAIT = 3 -- seconds a finished roll waits for your own number before showing the winner's
 local WAIT_LINGER = 45 -- seconds a closed bar waits for the result before giving up
 
 local anchor
@@ -415,6 +416,11 @@ local function createBar()
 	grow:SetSmoothing("OUT")
 
 	bar.rollAnim = RollFrame.CreateRollAnimation(bar)
+	-- Says whose number the roll animation shows ("You" or "Winner"); appears as it lands.
+	bar.rollLabel = W.Text(bar, "GameFontNormalSmall")
+	bar.rollLabel:SetPoint("RIGHT", bar, "RIGHT", -74, -8)
+	bar.rollLabel:SetJustifyH("RIGHT")
+	bar.rollLabel:Hide()
 
 	bar.pop = bar.status:CreateAnimationGroup()
 	local pop = bar.pop:CreateAnimation("Scale")
@@ -451,12 +457,14 @@ end
 -- (left of the buttons while the roll is open, the full bar once they're gone).
 local TEXT_LEFT = 9 + ICON_SIZE + 8
 local BUTTONS_AREA = 3 * BUTTON_SIZE + 2 * 2 + 10 + 8
+local ROLL_NUMBER_AREA = 112 -- the landed number and its label, at the bar's right
 
 function fitText(bar, withButtons)
 	local avail = ns.settings.barWidth - TEXT_LEFT - (withButtons and BUTTONS_AREA or 12)
+	local numberShown = bar.rollAnim and bar.rollAnim:IsShown()
 	local tagWidth = bar.tag:IsShown() and (W.StringWidth(bar.tag) + 6) or 0
 	bar.name:SetWidth(math.max(20, math.min(W.StringWidth(bar.name) + 2, avail - tagWidth)))
-	bar.statusWidth = math.max(20, avail)
+	bar.statusWidth = math.max(20, numberShown and (avail - ROLL_NUMBER_AREA + 12) or avail)
 	bar.status:SetWidth(bar.statusWidth)
 end
 
@@ -492,7 +500,7 @@ local function resultText(drop)
 	if r.roll then
 		text = text .. ("  |c%s%s|r |cffffffff%d|r"):format(W.GREY_HEX, how, r.roll)
 	end
-	local mine = drop.winner == ns.PlayerName()
+	local mine = drop.winner ~= nil and ns.IsMe(drop.winner, drop.rolls[drop.winner])
 	if mine then
 		text = ("|c%sYours!|r  "):format(W.GOLD_HEX) .. text
 	end
@@ -520,6 +528,7 @@ end
 
 local function stopAnimations(bar)
 	bar.revealAt = nil
+	bar.rollLabel:Hide()
 	bar.intro:Stop()
 	if bar.rollAnim then
 		bar.rollAnim.group:Stop()
@@ -539,32 +548,45 @@ local function reveal(bar)
 	bar.revealAt = nil
 	bar.status:SetText(bar.resultText)
 	markWon(bar)
+	bar.rollLabel:Show()
 	bar.pop:Play()
 end
 
--- Play Blizzard's roll animation over the bar: your roll (green if you won, red if not), or the winner's
--- roll in white if you didn't roll. Returns false if there's no number to show or no animation.
-local function playRollAnimation(bar, drop)
+-- Your entry in the drop and your number: from the loot history, or for a need roll the number the game
+-- told us as you rolled.
+local function myRoll(bar, drop)
+	local _, mine = ns.FindMe(drop.rolls)
+	local number = mine and mine.roll
+	if not number and (not mine or mine.choice == "need") then number = bar.selfRoll end
+	return mine, number
+end
+
+-- Play Blizzard's roll animation over the bar: your roll, labelled "You" (green if you won, red if not),
+-- or if you didn't roll, the winner's in white, labelled "Winner". The result line always names the
+-- winner and their roll. Returns false if there's no number to show or no animation.
+local function playRollAnimation(bar, drop, myNumber, mine)
 	local anim = bar.rollAnim
 	if not anim then return false end
-	local mine = drop.rolls[ns.PlayerName()]
-	local number, color
-	if mine and mine.roll then
-		number = mine.roll
+	local number, color, label
+	if myNumber then
+		number = myNumber
 		color = bar.youWon and "ff33ff33" or "ffff3333"
+		label = "You"
 	else
 		local w = drop.rolls[drop.winner or ""]
 		number = w and w.roll
 		color = "ffffffff"
+		label = "Winner"
 	end
 	if not number then return false end
 	anim.RollNumber:SetText(("|c%s%d|r"):format(color, number))
+	bar.rollLabel:SetText(label)
 	anim:Show()
 	anim.group:Stop()
 	anim.group:Play()
 	-- Blizzard's own (hidden) roll frame already plays this sound for a real need roll.
 	local blizzardPlays = mine and mine.choice == "need" and bar.roll and not bar.roll.isTest
-	if mine and mine.roll and not blizzardPlays and PlaySound and SOUNDKIT then
+	if myNumber and not blizzardPlays and PlaySound and SOUNDKIT then
 		local sound = bar.youWon and SOUNDKIT.UI_NEED_ROLL_POSITIVE or SOUNDKIT.UI_NEED_ROLL_NEGATIVE
 		if sound then PlaySound(sound) end
 	end
@@ -582,12 +604,26 @@ local function showResult(bar)
 		if not bar.revealAt then bar.status:SetText(bar.resultText) end
 		return
 	end
+	-- The winner can be known a moment before your own number arrives: give it a few seconds.
+	local mine, myNumber = myRoll(bar, drop)
+	local rolled = ns.IsRollChoice(mine and mine.choice or bar.roll.myChoice)
+	if rolled and not myNumber and not drop.allPassed and not bar.gaveUpOnMine then
+		bar.awaitMineUntil = bar.awaitMineUntil or (GetTime() + MINE_WAIT)
+		bar.status:SetText(("|c%sRolling...|r"):format(W.GREY_HEX))
+		return
+	end
+	bar.awaitMineUntil = nil
 	bar.resultShown = true
-	if ns.settings.animations and not drop.allPassed and playRollAnimation(bar, drop) then
+	if ns.settings.animations and not drop.allPassed and playRollAnimation(bar, drop, myNumber, mine) then
 		bar.revealAt = GetTime() + REVEAL_TIME
+		fitText(bar, false) -- keep the result line clear of the number
 		bar.status:SetText(("|c%sRolling...|r"):format(W.GREY_HEX))
 		bar.fadeAt = bar.revealAt + RESULT_LINGER
 	else
+		-- No animation: your number leads the line instead.
+		if myNumber and not bar.youWon then
+			bar.resultText = ("|c%sYou %d|r   "):format(W.GOLD_HEX, myNumber) .. bar.resultText
+		end
 		bar.status:SetText(bar.resultText)
 		markWon(bar)
 		bar.fadeAt = GetTime() + RESULT_LINGER
@@ -623,6 +659,10 @@ function RollFrame.UpdateBar(bar)
 		-- green with time to spare, through yellow, to red as it runs out
 		bar.timer:SetStatusBarColor(math.min(1, 2 * (1 - frac)), math.min(1, 2 * frac), 0)
 	end
+	if bar.awaitMineUntil and GetTime() >= bar.awaitMineUntil then
+		bar.gaveUpOnMine = true
+		showResult(bar)
+	end
 	if bar.revealAt and GetTime() >= bar.revealAt then
 		reveal(bar)
 	end
@@ -647,8 +687,10 @@ function RollFrame.Release(bar)
 	if bar.roll then ns.LootSource.Forget(bar.roll.id) end
 	stopAnimations(bar)
 	setWished(bar, false)
+	if bar.flash then bar.flash:Stop() end
 	bar:Hide()
 	bar.roll, bar.drop, bar.fadeAt, bar.selfRoll, bar.resultShown = nil, nil, nil, nil, nil
+	bar.awaitMineUntil, bar.gaveUpOnMine = nil, nil
 	table.insert(pool, bar)
 	layout()
 end
@@ -662,6 +704,7 @@ end
 local function onRollStart(roll)
 	local bar = table.remove(pool) or createBar()
 	bar.roll, bar.drop, bar.fadeAt, bar.selfRoll, bar.resultShown = roll, nil, nil, nil, nil
+	bar.awaitMineUntil, bar.gaveUpOnMine = nil, nil
 	stopAnimations(bar)
 	bar:SetAlpha(1)
 	bar.icon:SetItem(roll.texture, roll.quality)
@@ -685,6 +728,7 @@ local function onRollStart(roll)
 	bar:Show()
 	setWished(bar, ns.Wishlist.Matches(roll))
 	layout()
+	if ns.settings.flashBars then RollFrame.Flash(bar) end
 	refreshBar(bar)
 	if ns.settings.animations then
 		bar.intro:Play()
@@ -773,6 +817,24 @@ function RollFrame.ApplySettings()
 	layout()
 	RollFrame.ApplyBlizzard()
 	if ns.RollLog then ns.RollLog.Refresh() end
+end
+
+function RollFrame.Flash(bar)
+	local quality = bar.roll.quality
+	if quality == nil or ns.IsSecret(quality) then quality = 1 end
+	bar.flash = bar.flash or ns.BarFlash.Create(bar)
+	bar.flash:Play(quality, bar.wished)
+end
+
+-- Switching the flash on shows it on any bars that are up; off stops them.
+function RollFrame.FlashShown(on)
+	for _, bar in ipairs(bars) do
+		if on then
+			RollFrame.Flash(bar)
+		elseif bar.flash then
+			bar.flash:Stop()
+		end
+	end
 end
 
 function RollFrame.ResetPosition()

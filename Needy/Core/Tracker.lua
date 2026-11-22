@@ -48,7 +48,7 @@ function Tracker.RecordDrop(session, drop)
 	d.isTied = drop.isTied or nil
 	d.wishlisted = drop.wishlisted or d.wishlisted
 	for name, r in pairs(drop.rolls or {}) do
-		d.rolls[name] = { choice = r.choice, offSpec = r.offSpec, roll = r.roll, class = r.class }
+		d.rolls[name] = { choice = r.choice, offSpec = r.offSpec, roll = r.roll, class = r.class, isSelf = r.isSelf or nil }
 		if r.class then
 			session.players[name] = r.class
 		end

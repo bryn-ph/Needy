@@ -458,11 +458,10 @@ local SEPARATOR = "  |cff5e5e5e·|r  "
 function Widgets.FitRoster(fs, drop, width, opts)
 	opts = opts or {}
 	local resolved = ns.Titles.IsResolved(drop)
-	local me = ns.PlayerName()
 	local groups = { need = {}, greed = {}, pass = {}, none = {} }
 	for name, r in pairs(drop.rolls or {}) do
 		if name ~= opts.exclude then
-			table.insert(groups[r.choice] or groups.none, { name = name, class = r.class, roll = r.roll, me = name == me })
+			table.insert(groups[r.choice] or groups.none, { name = name, class = r.class, roll = r.roll, me = ns.IsMe(name, r) })
 		end
 	end
 	for _, list in pairs(groups) do
