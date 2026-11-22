@@ -1,20 +1,19 @@
--- The roll bars that replace Blizzard's GroupLootFrame popups.
+-- The roll bars that replace Blizzard's GroupLootFrame popups, drawn in the game's own style.
 local _, ns = ...
 
 local RollFrame = {}
 ns.RollFrame = RollFrame
 
 local W = ns.Widgets
-local C = W.C
+local GOLD = W.GOLD
 
-local BAR_HEIGHT = 52
-local BAR_GAP = 5
-local STRIPE = 3 -- quality colour stripe on the left edge
-local ICON_SIZE = 36
+local BAR_HEIGHT = 56
+local BAR_GAP = 4
+local ICON_SIZE = 38
 local BUTTON_SIZE = 30
-local BUTTON_GAP = 4
-local RESULT_LINGER = 2.5 -- seconds a finished bar stays up
-local REVEAL_TIME = 1 -- seconds of "Rolling..." before the result shows (animations on)
+local RESULT_LINGER = 1.8 -- seconds a finished bar stays up after the result shows
+local ANIM_SPEED = 0.6 -- Blizzard's need-roll animation, played a little faster (1 = their timing)
+local REVEAL_TIME = 3.4 * ANIM_SPEED -- when the number lands in that animation
 local WAIT_LINGER = 45 -- seconds a closed bar waits for the result before giving up
 
 local anchor
@@ -64,7 +63,7 @@ function RollFrame.ApplyBlizzard()
 end
 
 -- Anchor ---------------------------------------------------------------------------------------
--- While unlocked the anchor is a gold handle you drag the bars by. Like Edit Mode, faint centre guides
+-- While unlocked the anchor is a handle you drag the bars by. Like Edit Mode, faint centre guides
 -- appear across the screen and the bars snap onto them when dragged close; the handle also has a
 -- "Centre" button. Positions are stored as CENTER offsets from the middle of the screen.
 
@@ -117,7 +116,7 @@ local function createGuides()
 	function guides:Highlight(onX, onY)
 		local function paint(t, on)
 			if on then
-				t:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 0.9)
+				t:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.9)
 			else
 				t:SetColorTexture(1, 1, 1, 0.12)
 			end
@@ -151,7 +150,7 @@ end
 
 local function createAnchor()
 	anchor = CreateFrame("Frame", "NeedyAnchor", UIParent, "BackdropTemplate")
-	anchor:SetSize(ns.settings.barWidth, 30)
+	anchor:SetSize(ns.settings.barWidth, 34)
 	anchor:SetFrameStrata("HIGH")
 	anchor:SetClampedToScreen(true)
 	anchor:SetMovable(true)
@@ -165,23 +164,22 @@ local function createAnchor()
 	end)
 	anchor:SetScript("OnMouseUp", stopDrag)
 	anchor:SetScript("OnHide", stopDrag)
-	W.Skin(anchor, { 0.22, 0.17, 0.06, 0.92 }, { C.accent[1], C.accent[2], C.accent[3], 0.9 })
+	W.NativeBox(anchor, 0.85)
 
-	anchor.label = W.Text(anchor, "small")
-	anchor.label:SetPoint("LEFT", 10, 0)
-	anchor.label:SetTextColor(C.accent[1], C.accent[2], C.accent[3])
-	anchor.label:SetText("Roll bars  |cff9e9eadDrag - snaps to centre|r")
+	anchor.label = W.Text(anchor, "GameFontNormal")
+	anchor.label:SetPoint("LEFT", 12, 0)
+	anchor.label:SetText("Needy roll bars  |cff8c8c8cDrag to move|r")
 	anchor.label:SetWordWrap(false)
 
-	anchor.done = W.Button(anchor, "Done", 54, 20, "accent")
-	anchor.done:SetPoint("RIGHT", -5, 0)
+	anchor.done = W.Button(anchor, DONE or "Done", 64, 22)
+	anchor.done:SetPoint("RIGHT", -7, 0)
 	anchor.done:SetScript("OnClick", function()
 		ns.settings.locked = true
 		RollFrame.ApplySettings()
 		if ns.SettingsWindow then ns.SettingsWindow.Refresh() end
 	end)
-	anchor.centre = W.Button(anchor, "Centre", 60, 20)
-	anchor.centre:SetPoint("RIGHT", anchor.done, "LEFT", -4, 0)
+	anchor.centre = W.Button(anchor, "Centre", 70, 22)
+	anchor.centre:SetPoint("RIGHT", anchor.done, "LEFT", -2, 0)
 	anchor.centre:SetScript("OnClick", function()
 		local _, y = anchorOffset()
 		setAnchorOffset(0, y)
@@ -194,54 +192,39 @@ local function createAnchor()
 end
 
 -- Buttons ---------------------------------------------------------------------------------------
-
-local function paintButton(b)
-	if not b:IsEnabled() then
-		W.Skin(b, C.raised, C.border)
-		b.icon:SetDesaturated(true)
-		b:SetAlpha(0.35)
-		return
-	end
-	b.icon:SetDesaturated(false)
-	b:SetAlpha(1)
-	if b.selected then
-		W.Skin(b, { 0.24, 0.18, 0.05, 1 }, { C.accent[1], C.accent[2], C.accent[3], 1 })
-	elseif b.hovered then
-		W.Skin(b, C.hover, { C.accent[1], C.accent[2], C.accent[3], 0.7 })
-	else
-		W.Skin(b, C.raised, C.border)
-	end
-end
+-- The game's own need/greed/pass art. The chosen one keeps a gold action-button glow.
 
 local function setButtonEnabled(button, enabled, reason)
 	button:SetEnabled(enabled)
 	button.reason = reason
-	paintButton(button)
+	local tex = button:GetNormalTexture()
+	if tex then tex:SetDesaturated(not enabled) end
+	button:SetAlpha(enabled and 1 or 0.35)
 end
 
 local function makeButton(bar, choice)
 	local info = ns.Choices[choice]
-	local b = CreateFrame("Button", nil, bar, "BackdropTemplate")
+	local b = CreateFrame("Button", nil, bar)
 	b:SetSize(BUTTON_SIZE, BUTTON_SIZE)
+	b:SetNormalAtlas(info.button .. "-up")
+	b:SetHighlightAtlas(info.button .. "-highlight", "ADD")
+	b:SetPushedAtlas(info.button .. "-down")
 	b:SetMotionScriptsWhileDisabled(true)
-	b.icon = b:CreateTexture(nil, "ARTWORK")
-	b.icon:SetPoint("TOPLEFT", 3, -3)
-	b.icon:SetPoint("BOTTOMRIGHT", -3, 3)
-	b.icon:SetAtlas(info.button .. "-up")
 	b.choice = choice
+	b.glow = b:CreateTexture(nil, "BACKGROUND")
+	b.glow:SetPoint("CENTER")
+	b.glow:SetSize(BUTTON_SIZE + 16, BUTTON_SIZE + 16)
+	b.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+	b.glow:SetBlendMode("ADD")
+	b.glow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3])
+	b.glow:Hide()
 	b:SetScript("OnClick", function(self)
 		local roll = bar.roll
 		if roll and not roll.closed then
 			ns.LootSource.Choose(roll, self.choice)
 		end
 	end)
-	b:SetScript("OnMouseDown", function(self)
-		if self:IsEnabled() then self.icon:SetAtlas(info.button .. "-down") end
-	end)
-	b:SetScript("OnMouseUp", function(self) self.icon:SetAtlas(info.button .. "-up") end)
 	b:SetScript("OnEnter", function(self)
-		self.hovered = true
-		paintButton(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:SetText(info.label, 1, 1, 1)
 		if not self:IsEnabled() and self.reason then
@@ -249,12 +232,105 @@ local function makeButton(bar, choice)
 		end
 		GameTooltip:Show()
 	end)
-	b:SetScript("OnLeave", function(self)
-		self.hovered = false
-		paintButton(self)
-		GameTooltip:Hide()
-	end)
+	b:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	return b
+end
+
+-- Roll animation ---------------------------------------------------------------------------------
+-- Blizzard's own need-roll animation (NeedRollAnim in Blizzard_UIPanels_Game/Mainline/GroupLootFrame.xml on
+-- the forever branch), rebuilt in Lua: a dice flipbook, a glow, then reveal bursts as the number lands.
+-- Times are Blizzard's, scaled by ANIM_SPEED. If anything here isn't available, results just appear.
+
+local ROLL_ANIM_TEXTURES = {
+	-- key, atlas, width, height, x, y, sublevel
+	{ "DiceRoll", "lootroll-animdice", 58, 74, 0, 0, 0 },
+	{ "FX_RevealA", "lootroll-animreveal-a", 128, 114, 19.5, -7, 0 },
+	{ "FX_RevealFade", "lootroll-animrevealfade", 70, 220, 12.5, 30, 0 },
+	{ "DiceGlow", "lootroll-animdiceglow", 70, 76, 13, -13, 1 },
+	{ "FX_RevealB1", "lootroll-animreveal-b", 108, 150, 10, 15, 2 },
+	{ "FX_RevealB2", "lootroll-animreveal-b", 108, 150, 23, 15, 2 },
+}
+
+local ROLL_ANIM_STEPS = {
+	-- target, kind, duration, start delay, args (FlipBook: rows, columns, frames; Alpha: from, to;
+	-- Scale: to; Translation: y offset)
+	{ "DiceRoll", "FlipBook", 1.47, 0, { 9, 5, 44 } },
+	{ "DiceRoll", "Alpha", 1.47, 0, { 1, 1 } },
+	{ "DiceRoll", "Alpha", 0, 1.48, { 0, 0 } },
+	{ "DiceGlow", "FlipBook", 1.67, 1.48, { 10, 5, 50 } },
+	{ "DiceGlow", "Alpha", 1.47, 0, { 0, 0 } },
+	{ "DiceGlow", "Alpha", 1.67, 1.48, { 1, 1 } },
+	{ "DiceGlow", "Scale", 0.27, 3.15, { 1.3 } },
+	{ "DiceGlow", "Alpha", 0.27, 3.15, { 1, 0 } },
+	{ "FX_RevealB1", "FlipBook", 0.3, 3.15, { 2, 5, 10 } },
+	{ "FX_RevealB1", "Alpha", 3.14, 0, { 0, 0 } },
+	{ "FX_RevealB1", "Alpha", 0.3, 3.15, { 1, 1 } },
+	{ "FX_RevealB1", "Alpha", 0, 3.46, { 0, 0 } },
+	{ "FX_RevealB2", "FlipBook", 0.35, 3.2, { 2, 5, 10 } },
+	{ "FX_RevealB2", "Alpha", 3.19, 0, { 0, 0 } },
+	{ "FX_RevealB2", "Alpha", 0.35, 3.2, { 1, 1 } },
+	{ "FX_RevealB2", "Alpha", 0, 3.56, { 0, 0 } },
+	{ "FX_RevealA", "FlipBook", 0.4, 3.3, { 2, 6, 12 } },
+	{ "FX_RevealA", "Alpha", 3.29, 0, { 0, 0 } },
+	{ "FX_RevealA", "Alpha", 0.4, 3.3, { 1, 1 } },
+	{ "FX_RevealFade", "FlipBook", 0.7, 3.4, { 3, 7, 21 } },
+	{ "FX_RevealFade", "Alpha", 3.39, 0, { 0, 0 } },
+	{ "FX_RevealFade", "Alpha", 0.7, 3.4, { 1, 1 } },
+	{ "RollNumber", "Alpha", 3.39, 0, { 0, 0 } },
+	{ "RollNumber", "Alpha", 0.1, 3.4, { 0, 1 } },
+	{ "RollNumber", "Translation", 0, 0, { 5 } },
+	{ "RollNumber", "Translation", 0.6, 3.4, { -5 } },
+}
+
+local function buildRollAnimation(bar)
+	local f = CreateFrame("Frame", nil, bar)
+	f:SetSize(128, 128)
+	f:SetScale(0.7)
+	f:SetPoint("CENTER", bar, "RIGHT", -60 / 0.7, 0)
+	f:SetFrameLevel(bar:GetFrameLevel() + 5)
+	f:Hide()
+	for _, t in ipairs(ROLL_ANIM_TEXTURES) do
+		local tex = f:CreateTexture(nil, "ARTWORK", nil, t[7])
+		tex:SetAtlas(t[2])
+		tex:SetSize(t[3], t[4])
+		tex:SetPoint("CENTER", t[5], t[6])
+		f[t[1]] = tex
+	end
+	f.RollNumber = f:CreateFontString(nil, "ARTWORK", "Game32Font")
+	f.RollNumber:SetPoint("CENTER", 13, -13)
+
+	local group = f:CreateAnimationGroup()
+	group:SetToFinalAlpha(true)
+	for _, s in ipairs(ROLL_ANIM_STEPS) do
+		local a = group:CreateAnimation(s[2])
+		a:SetTarget(f[s[1]])
+		a:SetDuration(s[3] * ANIM_SPEED)
+		a:SetStartDelay(s[4] * ANIM_SPEED)
+		a:SetOrder(1)
+		local v = s[5]
+		if s[2] == "FlipBook" then
+			a:SetFlipBookRows(v[1])
+			a:SetFlipBookColumns(v[2])
+			a:SetFlipBookFrames(v[3])
+			a:SetFlipBookFrameWidth(0)
+			a:SetFlipBookFrameHeight(0)
+		elseif s[2] == "Alpha" then
+			a:SetFromAlpha(v[1])
+			a:SetToAlpha(v[2])
+		elseif s[2] == "Scale" then
+			a:SetScaleFrom(1, 1)
+			a:SetScaleTo(v[1], v[1])
+		elseif s[2] == "Translation" then
+			a:SetOffset(0, v[1])
+		end
+	end
+	f.group = group
+	return f
+end
+
+function RollFrame.CreateRollAnimation(bar)
+	local ok, anim = pcall(buildRollAnimation, bar)
+	return ok and anim or nil
 end
 
 -- Bars -------------------------------------------------------------------------------------------
@@ -266,34 +342,14 @@ end
 local function createBar()
 	local bar = CreateFrame("Frame", nil, anchor, "BackdropTemplate")
 	bar:SetHeight(BAR_HEIGHT)
-	W.Skin(bar)
-	W.Shadow(bar, 3)
+	W.NativeBox(bar, 0.85)
 	bar:EnableMouse(true)
 	bar:SetScript("OnEnter", rosterTooltip)
 	bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-	-- Quality stripe on the left, and a soft tint of the same colour fading in from it.
-	bar.stripe = bar:CreateTexture(nil, "ARTWORK")
-	bar.stripe:SetPoint("TOPLEFT", 1, -1)
-	bar.stripe:SetPoint("BOTTOMLEFT", 1, 1)
-	bar.stripe:SetWidth(STRIPE)
-	bar.tint = bar:CreateTexture(nil, "BORDER")
-	bar.tint:SetPoint("TOPLEFT", 1 + STRIPE, -1)
-	bar.tint:SetPoint("BOTTOMLEFT", 1 + STRIPE, 1)
-	bar.tint:SetWidth(140)
-	W.Sheen(bar, 20, 0.035)
-
-	local iconButton = CreateFrame("Button", nil, bar, "BackdropTemplate")
-	iconButton:SetSize(ICON_SIZE, ICON_SIZE)
-	iconButton:SetPoint("LEFT", 1 + STRIPE + 7, 0)
-	iconButton:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-	iconButton.icon = iconButton:CreateTexture(nil, "ARTWORK")
-	iconButton.icon:SetPoint("TOPLEFT", 1, -1)
-	iconButton.icon:SetPoint("BOTTOMRIGHT", -1, 1)
-	ns.CropIcon(iconButton.icon)
-	iconButton.count = iconButton:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-	iconButton.count:SetPoint("BOTTOMRIGHT", -2, 2)
-	iconButton:SetScript("OnEnter", function(self)
+	local icon = W.ItemIcon(bar, ICON_SIZE)
+	icon:SetPoint("LEFT", 9, 0)
+	icon:SetScript("OnEnter", function(self)
 		local roll = bar.roll
 		if not roll then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -304,47 +360,46 @@ local function createBar()
 		end
 		GameTooltip:Show()
 	end)
-	iconButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	iconButton:SetScript("OnClick", function()
+	icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	icon:SetScript("OnClick", function()
 		local roll = bar.roll
 		if roll and roll.link and IsModifiedClick and IsModifiedClick() and HandleModifiedItemClick then
 			HandleModifiedItemClick(roll.link)
 		end
 	end)
-	bar.iconButton = iconButton
+	bar.icon = icon
 
 	bar.pass = makeButton(bar, "pass")
-	bar.pass:SetPoint("RIGHT", -9, 1)
+	bar.pass:SetPoint("RIGHT", -10, 1)
 	bar.greed = makeButton(bar, "greed")
-	bar.greed:SetPoint("RIGHT", bar.pass, "LEFT", -BUTTON_GAP, 0)
+	bar.greed:SetPoint("RIGHT", bar.pass, "LEFT", -2, 0)
 	bar.need = makeButton(bar, "need")
-	bar.need:SetPoint("RIGHT", bar.greed, "LEFT", -BUTTON_GAP, 0)
+	bar.need:SetPoint("RIGHT", bar.greed, "LEFT", -2, 0)
 	bar.buttons = { bar.need, bar.greed, bar.pass }
 
-	bar.name = W.Text(bar, "body")
-	bar.name:SetPoint("TOPLEFT", iconButton, "TOPRIGHT", 9, -2)
+	bar.name = W.Text(bar, "GameFontNormal")
+	bar.name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, -1)
 	bar.name:SetWordWrap(false)
 	if bar.name.SetMaxLines then bar.name:SetMaxLines(1) end
 
-	bar.tag = W.Text(bar, "tiny")
+	bar.tag = W.Text(bar, "GameFontRedSmall")
 	bar.tag:SetPoint("LEFT", bar.name, "RIGHT", 6, 0)
-	bar.tag:SetTextColor(C.bad[1], C.bad[2], C.bad[3])
 	bar.tag:SetWordWrap(false)
 
-	bar.status = W.Text(bar, "small")
-	bar.status:SetPoint("TOPLEFT", bar.name, "BOTTOMLEFT", 0, -5)
+	bar.status = W.Text(bar, "GameFontHighlightSmall")
+	bar.status:SetPoint("TOPLEFT", bar.name, "BOTTOMLEFT", 0, -4)
 	bar.status:SetWordWrap(false)
 	if bar.status.SetMaxLines then bar.status:SetMaxLines(1) end
 
-	-- Countdown: a thin line along the bottom edge.
+	-- Countdown, like the default roll frame's.
 	bar.timer = CreateFrame("StatusBar", nil, bar)
-	bar.timer:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-	bar.timer:SetHeight(2)
-	bar.timer:SetPoint("BOTTOMLEFT", 1 + STRIPE, 1)
-	bar.timer:SetPoint("BOTTOMRIGHT", -1, 1)
+	bar.timer:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+	bar.timer:SetHeight(6)
+	bar.timer:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 8, 0)
+	bar.timer:SetPoint("RIGHT", bar.need, "LEFT", -8, 0)
 	bar.timer.bg = bar.timer:CreateTexture(nil, "BACKGROUND")
 	bar.timer.bg:SetAllPoints()
-	bar.timer.bg:SetColorTexture(1, 1, 1, 0.06)
+	bar.timer.bg:SetColorTexture(0, 0, 0, 0.5)
 
 	-- Animations (only played when the "animations" option is on).
 	bar.intro = bar:CreateAnimationGroup()
@@ -358,34 +413,7 @@ local function createBar()
 	grow:SetDuration(0.25)
 	grow:SetSmoothing("OUT")
 
-	bar.dice = bar:CreateTexture(nil, "OVERLAY")
-	bar.dice:SetTexture("Interface\\Buttons\\UI-GroupLoot-Dice-Up")
-	bar.dice:SetSize(30, 30)
-	bar.dice:SetPoint("RIGHT", -14, 0)
-	bar.dice:Hide()
-	bar.dice.spin = bar.dice:CreateAnimationGroup()
-	bar.dice.spin:SetLooping("REPEAT")
-	local turn = bar.dice.spin:CreateAnimation("Rotation")
-	turn:SetDegrees(-360)
-	turn:SetDuration(0.45)
-
-	bar.flash = bar:CreateTexture(nil, "ARTWORK", nil, 2)
-	bar.flash:SetPoint("TOPLEFT", 1, -1)
-	bar.flash:SetPoint("BOTTOMRIGHT", -1, 1)
-	bar.flash:SetColorTexture(1, 1, 1, 1)
-	bar.flash:SetBlendMode("ADD")
-	bar.flash:SetAlpha(0)
-	bar.flash.anim = bar.flash:CreateAnimationGroup()
-	local up = bar.flash.anim:CreateAnimation("Alpha")
-	up:SetFromAlpha(0)
-	up:SetToAlpha(0.35)
-	up:SetDuration(0.1)
-	up:SetOrder(1)
-	local down = bar.flash.anim:CreateAnimation("Alpha")
-	down:SetFromAlpha(0.35)
-	down:SetToAlpha(0)
-	down:SetDuration(0.7)
-	down:SetOrder(2)
+	bar.rollAnim = RollFrame.CreateRollAnimation(bar)
 
 	bar.pop = bar.status:CreateAnimationGroup()
 	local pop = bar.pop:CreateAnimation("Scale")
@@ -420,11 +448,11 @@ end
 
 -- Give the name and roster lines explicit widths so long text is cut off with "..." inside the bar
 -- (left of the buttons while the roll is open, the full bar once they're gone).
-local TEXT_LEFT = 1 + STRIPE + 7 + ICON_SIZE + 9
-local BUTTONS_AREA = 3 * BUTTON_SIZE + 2 * BUTTON_GAP + 9 + 10
+local TEXT_LEFT = 9 + ICON_SIZE + 8
+local BUTTONS_AREA = 3 * BUTTON_SIZE + 2 * 2 + 10 + 8
 
 function fitText(bar, withButtons)
-	local avail = ns.settings.barWidth - TEXT_LEFT - (withButtons and BUTTONS_AREA or 10)
+	local avail = ns.settings.barWidth - TEXT_LEFT - (withButtons and BUTTONS_AREA or 12)
 	local tagWidth = bar.tag:IsShown() and (W.StringWidth(bar.tag) + 6) or 0
 	bar.name:SetWidth(math.max(20, math.min(W.StringWidth(bar.name) + 2, avail - tagWidth)))
 	bar.statusWidth = math.max(20, avail)
@@ -434,15 +462,15 @@ end
 -- Who's chosen what so far, fitted to the line (see Widgets.FitRoster). You show up as "You".
 local function rosterLine(bar)
 	local drop = bar.drop
-	local prefix = bar.selfRoll and ("|c%sYou rolled %d|r   "):format(W.ACCENT_HEX, bar.selfRoll) or ""
+	local prefix = bar.selfRoll and ("|c%sYou rolled %d|r   "):format(W.GOLD_HEX, bar.selfRoll) or ""
 	if not drop then
 		local text = prefix
 		local mine = bar.roll and bar.roll.myChoice
 		if mine and not bar.selfRoll then
-			text = text .. ("|c%sYou: %s|r   "):format(W.ACCENT_HEX, ns.Choices[mine].label)
+			text = text .. ("|c%sYou: %s|r   "):format(W.GOLD_HEX, ns.Choices[mine].label)
 		end
 		if bar.roll and bar.roll.closed then
-			text = text .. ("|c%sWaiting for the others...|r"):format(W.MUTED_HEX)
+			text = text .. ("|c%sWaiting for the others...|r"):format(W.GREY_HEX)
 		end
 		bar.status:SetText(text)
 		return
@@ -452,17 +480,17 @@ end
 
 local function resultText(drop)
 	if drop.allPassed then
-		return ("|c%sEveryone passed.|r"):format(W.MUTED_HEX), false
+		return ("|c%sEveryone passed.|r"):format(W.GREY_HEX), false
 	end
 	local r = drop.rolls[drop.winner] or {}
 	local how = r.choice and ns.Choices[r.choice] and ns.Choices[r.choice].label or ""
 	local text = ("Won by %s"):format(ns.ColorName(drop.winner, drop.winnerClass or r.class))
 	if r.roll then
-		text = text .. ("  |c%s%s|r |cffffffff%d|r"):format(W.MUTED_HEX, how, r.roll)
+		text = text .. ("  |c%s%s|r |cffffffff%d|r"):format(W.GREY_HEX, how, r.roll)
 	end
 	local mine = drop.winner == ns.PlayerName()
 	if mine then
-		text = ("|c%sYours!|r  "):format(W.ACCENT_HEX) .. text
+		text = ("|c%sYours!|r  "):format(W.GOLD_HEX) .. text
 	end
 	return text, mine
 end
@@ -470,27 +498,54 @@ end
 local function stopAnimations(bar)
 	bar.revealAt = nil
 	bar.intro:Stop()
-	bar.dice.spin:Stop()
-	bar.dice:Hide()
-	bar.flash.anim:Stop()
-	bar.flash:SetAlpha(0)
+	if bar.rollAnim then
+		bar.rollAnim.group:Stop()
+		bar.rollAnim:Hide()
+	end
 	bar.pop:Stop()
 end
 
--- The result lands: final text, a flash (gold if it's yours) and a little pop.
+local function markWon(bar)
+	if bar.youWon then
+		bar:SetBackdropBorderColor(GOLD[1], GOLD[2], GOLD[3], 1)
+	end
+end
+
+-- The number has landed in the roll animation: show the result line.
 local function reveal(bar)
 	bar.revealAt = nil
-	bar.dice.spin:Stop()
-	bar.dice:Hide()
 	bar.status:SetText(bar.resultText)
-	if bar.youWon then
-		bar.flash:SetVertexColor(C.accent[1], C.accent[2], C.accent[3])
-		bar:SetBackdropBorderColor(C.accent[1], C.accent[2], C.accent[3], 1)
-	else
-		bar.flash:SetVertexColor(ns.QualityColor(bar.roll and bar.roll.quality))
-	end
-	bar.flash.anim:Play()
+	markWon(bar)
 	bar.pop:Play()
+end
+
+-- Play Blizzard's roll animation over the bar: your roll (green if you won, red if not), or the winner's
+-- roll in white if you didn't roll. Returns false if there's no number to show or no animation.
+local function playRollAnimation(bar, drop)
+	local anim = bar.rollAnim
+	if not anim then return false end
+	local mine = drop.rolls[ns.PlayerName()]
+	local number, color
+	if mine and mine.roll then
+		number = mine.roll
+		color = bar.youWon and "ff33ff33" or "ffff3333"
+	else
+		local w = drop.rolls[drop.winner or ""]
+		number = w and w.roll
+		color = "ffffffff"
+	end
+	if not number then return false end
+	anim.RollNumber:SetText(("|c%s%d|r"):format(color, number))
+	anim:Show()
+	anim.group:Stop()
+	anim.group:Play()
+	-- Blizzard's own (hidden) roll frame already plays this sound for a real need roll.
+	local blizzardPlays = mine and mine.choice == "need" and bar.roll and not bar.roll.isTest
+	if mine and mine.roll and not blizzardPlays and PlaySound and SOUNDKIT then
+		local sound = bar.youWon and SOUNDKIT.UI_NEED_ROLL_POSITIVE or SOUNDKIT.UI_NEED_ROLL_NEGATIVE
+		if sound then PlaySound(sound) end
+	end
+	return true
 end
 
 local function showResult(bar)
@@ -505,15 +560,13 @@ local function showResult(bar)
 		return
 	end
 	bar.resultShown = true
-	if ns.settings.animations and not drop.allPassed then
+	if ns.settings.animations and not drop.allPassed and playRollAnimation(bar, drop) then
 		bar.revealAt = GetTime() + REVEAL_TIME
-		bar.nextTick = 0
-		bar.dice:Show()
-		bar.dice.spin:Play()
+		bar.status:SetText(("|c%sRolling...|r"):format(W.GREY_HEX))
 		bar.fadeAt = bar.revealAt + RESULT_LINGER
 	else
 		bar.status:SetText(bar.resultText)
-		if bar.youWon then bar:SetBackdropBorderColor(C.accent[1], C.accent[2], C.accent[3], 1) end
+		markWon(bar)
 		bar.fadeAt = GetTime() + RESULT_LINGER
 	end
 end
@@ -527,8 +580,7 @@ local function refreshBar(bar)
 	local open = not roll.closed
 	for _, b in ipairs(bar.buttons) do
 		b:SetShown(open)
-		b.selected = roll.myChoice == b.choice
-		paintButton(b)
+		b.glow:SetShown(roll.myChoice == b.choice)
 	end
 	bar.timer:SetShown(open)
 	fitText(bar, open)
@@ -545,17 +597,11 @@ function RollFrame.UpdateBar(bar)
 		local left = ns.LootSource.TimeLeft(roll)
 		local frac = roll.rollTime > 0 and left / roll.rollTime or 0
 		bar.timer:SetValue(left)
-		-- gold while there's time, sliding to red as it runs out
-		bar.timer:SetStatusBarColor(1, 0.3 + frac * 0.48, 0.2 + frac * 0.08)
+		-- green with time to spare, through yellow, to red as it runs out
+		bar.timer:SetStatusBarColor(math.min(1, 2 * (1 - frac)), math.min(1, 2 * frac), 0)
 	end
-	if bar.revealAt then
-		local t = GetTime()
-		if t >= bar.revealAt then
-			reveal(bar)
-		elseif t >= bar.nextTick then
-			bar.nextTick = t + 0.06
-			bar.status:SetText(("|c%sRolling...|r  |cffffffff%d|r"):format(W.MUTED_HEX, math.random(1, 100)))
-		end
+	if bar.revealAt and GetTime() >= bar.revealAt then
+		reveal(bar)
 	end
 	if bar.fadeAt then
 		local t = GetTime()
@@ -594,13 +640,10 @@ local function onRollStart(roll)
 	bar.roll, bar.drop, bar.fadeAt, bar.selfRoll, bar.resultShown = roll, nil, nil, nil, nil
 	stopAnimations(bar)
 	bar:SetAlpha(1)
-	W.Skin(bar)
-	bar.iconButton.icon:SetTexture(roll.texture or ns.FALLBACK_ICON)
-	bar.iconButton.count:SetText((roll.count or 1) > 1 and roll.count or "")
+	bar.icon:SetItem(roll.texture, roll.quality)
+	bar.icon.count:SetText((roll.count or 1) > 1 and roll.count or "")
 	local r, g, b = ns.QualityColor(roll.quality)
-	bar.iconButton:SetBackdropBorderColor(r, g, b, 1)
-	bar.stripe:SetColorTexture(r, g, b, 1)
-	W.SetFade(bar.tint, r, g, b, 0.16)
+	bar:SetBackdropBorderColor(r, g, b, 1)
 	bar.name:SetText(roll.name or "?")
 	bar.name:SetTextColor(r, g, b)
 	bar.tag:SetText(roll.bop and "BoP" or "")
@@ -609,9 +652,6 @@ local function onRollStart(roll)
 
 	local function reason(code)
 		return code and _G["LOOT_ROLL_INELIGIBLE_REASON" .. code] or nil
-	end
-	for _, btn in ipairs(bar.buttons) do
-		btn.selected, btn.hovered = false, false
 	end
 	setButtonEnabled(bar.need, roll.canNeed == true, reason(roll.reasonNeed))
 	setButtonEnabled(bar.greed, roll.canGreed == true, reason(roll.reasonGreed))
@@ -685,10 +725,10 @@ function RollFrame.ApplySettings()
 	anchor:SetScale(ns.settings.scale)
 	local unlocked = not ns.settings.locked
 	anchor:EnableMouse(unlocked)
-	anchor:SetBackdropColor(0.22, 0.17, 0.06, unlocked and 0.92 or 0)
-	anchor:SetBackdropBorderColor(C.accent[1], C.accent[2], C.accent[3], unlocked and 0.9 or 0)
+	anchor:SetBackdropColor(0, 0, 0, unlocked and 0.85 or 0)
+	anchor:SetBackdropBorderColor(GOLD[1], GOLD[2], GOLD[3], unlocked and 1 or 0)
 	anchor.label:SetShown(unlocked)
-	anchor.label:SetWidth(math.max(40, ns.settings.barWidth - 140))
+	anchor.label:SetWidth(math.max(40, ns.settings.barWidth - 170))
 	anchor.done:SetShown(unlocked)
 	anchor.centre:SetShown(unlocked)
 	guides:SetShown(unlocked)
@@ -705,4 +745,3 @@ function RollFrame.ResetPosition()
 	ns.settings.position = nil
 	placeAnchor()
 end
-

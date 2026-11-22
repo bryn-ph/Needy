@@ -1,78 +1,66 @@
--- End-of-run awards. Pure data + maths over a session, no UI, so it's easy to tweak and to test offline.
+-- End-of-run awards. Pure data and maths over a session, no UI, so it's easy to tweak and to test offline.
+--
+-- Awards are meant to land, not to hand everyone a participation trophy:
+--   * a "most" award needs a clear winner whose count clears a minimum, leads the next player by at least
+--     `lead` (1 if unset, so ties never count) and, where set, is a big enough share of the items they saw
+--     (share) or of the whole run (runShare);
+--   * an "exact" award is a rare moment (a roll of 100 or of 1) and can be shared. It only counts in runs
+--     with at most maxRolls rolls: across a whole raid somebody nearly always rolls a 100;
+--   * each player gets at most one award, their most impressive, and a run shows at most MAX_AWARDS.
+-- A quiet run can end with no awards at all.
 local _, ns = ...
 
 local Titles = {}
 ns.Titles = Titles
 
+local MAX_AWARDS = 5
+local EXACT_SCORE = 1.5 -- how a rare roll ranks against "most" awards (which score count / minimum)
+
 local function icon(name)
 	return "Interface\\Icons\\" .. name
 end
 
--- Each title: value(stats) returns a number (or nil if the player doesn't qualify), pick = "max"/"min",
--- min/max thresholds on that number, and text(value, stats) for the blurb.
--- title may be a function(value) so one award can change name at the extremes.
 Titles.List = {
 	{
 		key = "hoarder", title = "Loot Hoarder", icon = icon("INV_Misc_Bag_08"),
-		value = function(s) return s.needs end, pick = "max", min = 2,
-		text = function(v) return ("Needed %d times"):format(v) end,
-	},
-	{
-		key = "unlucky", title = "Unlucky", icon = icon("Spell_Shadow_GatherShadows"),
-		value = function(s) return s.losses end, pick = "max", min = 2,
-		text = function(v) return ("Lost %d rolls"):format(v) end,
+		most = "needs", min = 3, share = 0.5, lead = 2,
+		text = function(v, s) return ("Needed %d of %d items"):format(v, s.drops) end,
 	},
 	{
 		key = "golden", title = "Golden Hands", icon = icon("INV_Misc_Coin_02"),
-		value = function(s) return s.wins end, pick = "max", min = 2,
+		most = "wins", min = 3, runShare = 0.25, lead = 2,
 		text = function(v) return ("Walked away with %d items"):format(v) end,
 	},
 	{
-		key = "saint", title = "The Saint", icon = icon("Spell_Holy_HolyBolt"),
-		value = function(s) return s.passes end, pick = "max", min = 3,
-		text = function(v) return ("Passed %d times"):format(v) end,
+		key = "unlucky", title = "Unlucky", icon = icon("Spell_Shadow_GatherShadows"),
+		most = "losses", min = 4, qualify = function(s) return s.wins == 0 end,
+		text = function(v) return ("Rolled %d times and won nothing"):format(v) end,
 	},
 	{
-		key = "goblin", title = "Greedy Goblin", icon = icon("INV_Misc_Coin_17"),
-		value = function(s) return s.greeds end, pick = "max", min = 3,
-		text = function(v) return ("Greeded %d times"):format(v) end,
+		key = "saint", title = "The Saint", icon = icon("Spell_Holy_HolyBolt"),
+		most = "passes", min = 4, share = 0.65,
+		text = function(v, s) return ("Passed on %d of %d items"):format(v, s.drops) end,
 	},
 	{
 		key = "bridesmaid", title = "Always the Bridesmaid", icon = icon("INV_Misc_Flower_02"),
-		value = function(s) return s.seconds end, pick = "max", min = 2,
+		most = "seconds", min = 3, lead = 2,
 		text = function(v) return ("Came second %d times"):format(v) end,
 	},
 	{
 		key = "asleep", title = "Asleep at the Wheel", icon = icon("Spell_Nature_Sleep"),
-		value = function(s) return s.noRolls end, pick = "max", min = 2,
-		text = function(v) return ("Let %d rolls time out"):format(v) end,
+		most = "noRolls", min = 3, share = 0.33,
+		text = function(v, s) return ("Let %d of %d rolls time out"):format(v, s.drops) end,
 	},
 	{
-		key = "high", icon = icon("INV_Misc_Dice_01"),
-		title = function(v) return v == 100 and "Natural 100" or "High Roller" end,
-		value = function(s) return s.high end, pick = "max", min = 90,
-		text = function(v) return ("Rolled a %d"):format(v) end,
+		key = "natural100", title = "Natural 100", icon = icon("INV_Misc_Dice_01"),
+		exact = "high", equals = 100, maxRolls = 80,
+		text = function() return "Rolled a perfect 100" end,
 	},
 	{
-		key = "low", icon = icon("INV_Misc_Dice_02"),
-		title = function(v) return v == 1 and "Critical Fail" or "Snake Eyes" end,
-		value = function(s) return s.low end, pick = "min", max = 10,
-		text = function(v) return ("Rolled a %d"):format(v) end,
+		key = "critfail", title = "Critical Fail", icon = icon("INV_Misc_Dice_02"),
+		exact = "low", equals = 1, maxRolls = 80,
+		text = function() return "Rolled a 1" end,
 	},
-	{
-		key = "average", title = "Perfectly Average", icon = icon("INV_Misc_Note_01"),
-		value = function(s)
-			if s.rollCount < 3 then return nil end
-			return math.abs(s.rollSum / s.rollCount - 50.5)
-		end,
-		pick = "min", max = 8,
-		text = function(_, s) return ("Averaged %.1f over %d rolls"):format(s.rollSum / s.rollCount, s.rollCount) end,
-	},
-}
-
-Titles.Fallback = {
-	key = "background", title = "Background Character", icon = icon("INV_Misc_QuestionMark"),
-	text = function() return "Was also there" end,
 }
 
 local function newStats(class)
@@ -80,7 +68,7 @@ local function newStats(class)
 		class = class, drops = 0,
 		needs = 0, greeds = 0, passes = 0, noRolls = 0,
 		wins = 0, losses = 0, seconds = 0,
-		rollCount = 0, rollSum = 0, high = nil, low = nil,
+		rollCount = 0, high = nil, low = nil,
 	}
 end
 
@@ -90,12 +78,13 @@ function Titles.IsResolved(drop)
 	return drop.winner ~= nil or drop.allPassed == true
 end
 
--- Per-player numbers for a session. Only resolved drops count, so a run that ends mid-roll
--- doesn't hand out "Asleep at the Wheel" for rolls still in progress.
+-- Per-player numbers for a session, plus the number of finished drops. Only resolved drops count, so a
+-- run that ends mid-roll doesn't count rolls still in progress as timed out.
 function Titles.Stats(session)
-	local stats = {}
+	local stats, resolved = {}, 0
 	for _, drop in ipairs(session.drops or {}) do
 		if Titles.IsResolved(drop) then
+			resolved = resolved + 1
 			local ranked = {}
 			for name, r in pairs(drop.rolls or {}) do
 				local s = stats[name]
@@ -113,7 +102,6 @@ function Titles.Stats(session)
 					end
 					if type(r.roll) == "number" then
 						s.rollCount = s.rollCount + 1
-						s.rollSum = s.rollSum + r.roll
 						s.high = math.max(s.high or r.roll, r.roll)
 						s.low = math.min(s.low or r.roll, r.roll)
 						table.insert(ranked, { name = name, tier = ns.CHOICE_TIER[r.choice], roll = r.roll })
@@ -138,63 +126,75 @@ function Titles.Stats(session)
 			end
 		end
 	end
-	return stats
+	return stats, resolved
 end
 
-local function qualifies(def, v)
-	if v == nil then return false end
-	if def.min and v < def.min then return false end
-	if def.max and v > def.max then return false end
-	return true
-end
-
--- Returns a list of awards: { key, title, icon, text, players = { {name, class}, ... } }.
--- Tied players share an award. Anyone who took part but won nothing becomes a Background Character.
-function Titles.Compute(session)
-	local stats = Titles.Stats(session)
-	local awards = {}
-	local awarded = {}
-
-	for _, def in ipairs(Titles.List) do
-		local best, winners = nil, {}
+-- Who (if anyone) earns `def`, and how strongly. Returns names, value, score.
+local function candidates(def, stats, resolved)
+	if def.exact then
+		local rolls = 0
+		for _, s in pairs(stats) do rolls = rolls + s.rollCount end
+		if def.maxRolls and rolls > def.maxRolls then return {}, nil, 0 end
+		local names = {}
 		for name, s in pairs(stats) do
-			local v = def.value(s)
-			if qualifies(def, v) then
-				local better = best == nil
-					or (def.pick == "min" and v < best)
-					or (def.pick ~= "min" and v > best)
-				if better then
-					best, winners = v, { name }
-				elseif v == best then
-					table.insert(winners, name)
-				end
+			if s[def.exact] == def.equals then table.insert(names, name) end
+		end
+		return names, def.equals, EXACT_SCORE
+	end
+
+	local best, bestName, runnerUp = nil, nil, nil
+	for name, s in pairs(stats) do
+		local v = s[def.most] or 0
+		if best == nil or v > best then
+			runnerUp = best
+			best, bestName = v, name
+		elseif runnerUp == nil or v > runnerUp then
+			runnerUp = v
+		end
+	end
+	if not bestName then return {}, nil, 0 end
+	if runnerUp and best - runnerUp < (def.lead or 1) then return {}, nil, 0 end -- a tie, or too close to call
+	local s = stats[bestName]
+	if best < def.min then return {}, nil, 0 end
+	if def.share and best < def.share * s.drops then return {}, nil, 0 end
+	if def.runShare and best < def.runShare * resolved then return {}, nil, 0 end
+	if def.qualify and not def.qualify(s) then return {}, nil, 0 end
+	return { bestName }, best, best / def.min
+end
+
+-- Returns a list of awards: { key, title, icon, text, players = { {name, class}, ... } }, most impressive
+-- first, and the per-player stats.
+function Titles.Compute(session)
+	local stats, resolved = Titles.Stats(session)
+	local found = {}
+	for i, def in ipairs(Titles.List) do
+		local names, value, score = candidates(def, stats, resolved)
+		if #names > 0 then
+			table.insert(found, { def = def, names = names, value = value, score = score, order = i })
+		end
+	end
+	table.sort(found, function(a, b)
+		if a.score ~= b.score then return a.score > b.score end
+		return a.order < b.order
+	end)
+
+	local awards, taken = {}, {}
+	for _, f in ipairs(found) do
+		if #awards >= MAX_AWARDS then break end
+		local players = {}
+		for _, name in ipairs(f.names) do
+			if not taken[name] then
+				table.insert(players, { name = name, class = stats[name].class })
 			end
 		end
-		if best ~= nil then
-			table.sort(winners)
-			local players = {}
-			for _, name in ipairs(winners) do
-				table.insert(players, { name = name, class = stats[name].class })
-				awarded[name] = true
-			end
-			local title = type(def.title) == "function" and def.title(best) or def.title
+		if #players > 0 then
+			table.sort(players, function(a, b) return a.name < b.name end)
+			for _, p in ipairs(players) do taken[p.name] = true end
 			table.insert(awards, {
-				key = def.key, title = title, icon = def.icon, players = players,
-				text = def.text(best, stats[winners[1]]),
+				key = f.def.key, title = f.def.title, icon = f.def.icon, players = players,
+				text = f.def.text(f.value, stats[players[1].name]),
 			})
 		end
-	end
-
-	local leftovers = {}
-	for name, s in pairs(stats) do
-		if not awarded[name] then
-			table.insert(leftovers, { name = name, class = s.class })
-		end
-	end
-	if #leftovers > 0 then
-		table.sort(leftovers, function(a, b) return a.name < b.name end)
-		local f = Titles.Fallback
-		table.insert(awards, { key = f.key, title = f.title, icon = f.icon, players = leftovers, text = f.text() })
 	end
 	return awards, stats
 end

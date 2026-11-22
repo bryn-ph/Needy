@@ -26,8 +26,8 @@ local CLASSES = {
 local PROFILES = {
 	normal = { need = 35, greed = 40, pass = 20, none = 5 },
 	hoarder = { need = 85, greed = 5, pass = 10 },
-	saint = { pass = 85, greed = 15 },
-	goblin = { greed = 80, need = 10, pass = 10, rollMax = 45 },
+	saint = { pass = 95, greed = 5 },
+	unlucky = { greed = 60, need = 40, rollMax = 25 },
 	sleepy = { none = 55, greed = 25, pass = 20 },
 }
 
@@ -222,7 +222,7 @@ end
 -- /needy test: start (or add to) a live test run with a fake party.
 function TestMode.Start(count)
 	if not ns.Tracker.testSession then
-		party = makeParty({ "normal", "hoarder", "saint", "goblin" })
+		party = makeParty({ "normal", "hoarder", "saint", "unlucky" })
 		ns.Tracker.testSession = ns.Tracker.NewSession({
 			isTest = true, instanceName = "Test Run", difficultyName = "Fake party",
 		})
@@ -269,7 +269,7 @@ end
 -- /needy test run: a whole fake dungeon in one go, with a party built to earn every title.
 function TestMode.Run(dropCount)
 	dropCount = dropCount or 12
-	local runParty = makeParty({ "hoarder", "saint", "goblin", "sleepy", "normal" })
+	local runParty = makeParty({ "hoarder", "saint", "unlucky", "sleepy", "normal" })
 	ns.Print("Simulating a run...")
 	loadItems(dropCount, function(infos)
 		local prevParty = party

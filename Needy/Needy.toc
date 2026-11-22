@@ -4,7 +4,7 @@
 ## Author: bryn-ph
 ## Version: @project-version@
 ## Category: Loot
-## IconTexture: Interface\Buttons\UI-GroupLoot-Dice-Up
+## IconTexture: Interface\AddOns\Needy\Media\icon
 ## SavedVariables: NeedyDB
 ## AddonCompartmentFunc: Needy_OnAddonCompartmentClick
 ## X-License: MIT

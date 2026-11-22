@@ -1,17 +1,17 @@
--- The Roll Log: a small dice tab on screen during a run. Click it to slide out this run's drops
--- (item, winner, roll); click again to tuck it away. Drag the tab to move it. Optional (showLog).
+-- The Roll Log: a small button on screen during a run. Click it to open a list of this run's drops
+-- (item, winner, roll); click again to tuck it away. Drag the button to move it. Optional (showLog).
 local _, ns = ...
 
 local RollLog = {}
 ns.RollLog = RollLog
 
 local W = ns.Widgets
-local C = W.C
+local GOLD = W.GOLD
 
-local TAB_SIZE = 38
-local PANEL_WIDTH = 290
-local HEADER_HEIGHT = 30
-local ROW_HEIGHT = 24
+local TAB_SIZE = 40
+local PANEL_WIDTH = 300
+local HEADER_HEIGHT = 34
+local ROW_HEIGHT = 22
 
 local tab, panel
 local rows = {}
@@ -24,15 +24,15 @@ end
 
 local function winnerText(drop)
 	if drop.allPassed then
-		return ("|c%spassed|r"):format(W.MUTED_HEX)
+		return ("|c%spassed|r"):format(W.GREY_HEX)
 	end
 	if not drop.winner then
-		return ("|c%srolling...|r"):format(W.MUTED_HEX)
+		return ("|c%srolling...|r"):format(W.GREY_HEX)
 	end
 	local r = drop.rolls[drop.winner] or {}
 	local text = ns.ColorName(drop.winner, drop.winnerClass or r.class)
 	if r.roll then
-		text = text .. ("  |c%s%d|r"):format(W.ACCENT_HEX, r.roll)
+		text = text .. ("  |cffffffff%d|r"):format(r.roll)
 	end
 	return text
 end
@@ -54,53 +54,41 @@ local function placeTab()
 	end
 end
 
--- The panel opens on whichever side of the tab has more room.
+-- The list opens on whichever side of the button has more room.
 local function placePanel()
 	panel:ClearAllPoints()
 	local x = tab:GetCenter()
 	local screen = UIParent:GetWidth() or 0
 	if x and x > screen / 2 then
-		panel:SetPoint("TOPRIGHT", tab, "TOPLEFT", -4, 0)
+		panel:SetPoint("TOPRIGHT", tab, "TOPLEFT", -2, 4)
 		panel.growLeft = true
 	else
-		panel:SetPoint("TOPLEFT", tab, "TOPRIGHT", 4, 0)
+		panel:SetPoint("TOPLEFT", tab, "TOPRIGHT", 2, 4)
 		panel.growLeft = false
 	end
 end
 
 -- Rows ------------------------------------------------------------------------------------------
 
-local function createRow(i)
+local function createRow()
 	local row = CreateFrame("Button", nil, panel)
-	row:SetSize(PANEL_WIDTH - 2, ROW_HEIGHT)
+	row:SetSize(PANEL_WIDTH - 16, ROW_HEIGHT)
 	row:RegisterForClicks("LeftButtonUp")
-	row.bg = row:CreateTexture(nil, "BACKGROUND")
-	row.bg:SetAllPoints()
-	row.bg:SetColorTexture(1, 1, 1, i % 2 == 0 and 0.025 or 0)
 	row.hl = row:CreateTexture(nil, "HIGHLIGHT")
 	row.hl:SetAllPoints()
-	row.hl:SetColorTexture(1, 1, 1, 0.06)
+	row.hl:SetColorTexture(1, 1, 1, 0.08)
 
-	row.stripe = row:CreateTexture(nil, "ARTWORK")
-	row.stripe:SetPoint("TOPLEFT", 0, 0)
-	row.stripe:SetPoint("BOTTOMLEFT", 0, 0)
-	row.stripe:SetWidth(2)
+	row.icon = W.ItemIcon(row, 18)
+	row.icon:SetPoint("LEFT", 2, 0)
+	row.icon:EnableMouse(false)
 
-	row.iconBorder = row:CreateTexture(nil, "ARTWORK")
-	row.iconBorder:SetSize(18, 18)
-	row.iconBorder:SetPoint("LEFT", 9, 0)
-	row.icon = row:CreateTexture(nil, "OVERLAY")
-	row.icon:SetPoint("TOPLEFT", row.iconBorder, "TOPLEFT", 1, -1)
-	row.icon:SetPoint("BOTTOMRIGHT", row.iconBorder, "BOTTOMRIGHT", -1, 1)
-	ns.CropIcon(row.icon)
-
-	row.winner = W.Text(row, "small")
-	row.winner:SetPoint("RIGHT", -10, 0)
+	row.winner = W.Text(row, "GameFontHighlightSmall")
+	row.winner:SetPoint("RIGHT", -4, 0)
 	row.winner:SetJustifyH("RIGHT")
 	row.winner:SetWordWrap(false)
 
-	row.item = W.Text(row, "small")
-	row.item:SetPoint("LEFT", row.iconBorder, "RIGHT", 7, 0)
+	row.item = W.Text(row, "GameFontHighlightSmall")
+	row.item:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
 	row.item:SetWordWrap(false)
 
 	row:SetScript("OnEnter", function(self)
@@ -122,60 +110,56 @@ end
 
 local function setRow(row, drop)
 	row.drop = drop
-	local r, g, b = ns.QualityColor(W.DropQuality(drop))
-	row.stripe:SetColorTexture(r, g, b, 0.9)
-	row.iconBorder:SetColorTexture(r, g, b, 1)
-	row.icon:SetTexture(W.DropIcon(drop))
-	row.item:SetText(drop.name or (drop.link and drop.link:match("%[(.-)%]")) or "?")
-	row.item:SetTextColor(r, g, b)
+	local quality = W.DropQuality(drop)
+	row.icon:SetItem(W.DropIcon(drop), quality)
+	row.item:SetText(W.DropName(drop))
+	row.item:SetTextColor(ns.QualityColor(quality))
 	row.winner:SetText(winnerText(drop))
 	-- Winner always shows in full; the item name gets what's left and is cut off with "...".
-	local winnerWidth = math.min(W.StringWidth(row.winner) + 2, PANEL_WIDTH * 0.5)
+	local rowWidth = PANEL_WIDTH - 16
+	local winnerWidth = math.min(W.StringWidth(row.winner) + 2, rowWidth * 0.5)
 	row.winner:SetWidth(winnerWidth)
-	row.item:SetWidth(math.max(20, PANEL_WIDTH - 2 - 9 - 18 - 7 - winnerWidth - 10 - 8))
+	row.item:SetWidth(math.max(20, rowWidth - 2 - 18 - 6 - winnerWidth - 4 - 8))
 end
 
 -- Frames ----------------------------------------------------------------------------------------
 
 local function createTab()
-	tab = CreateFrame("Button", "NeedyLogTab", UIParent, "BackdropTemplate")
+	tab = CreateFrame("Button", "NeedyLogTab", UIParent)
 	tab:SetSize(TAB_SIZE, TAB_SIZE)
 	tab:SetFrameStrata("MEDIUM")
 	tab:SetClampedToScreen(true)
 	tab:SetMovable(true)
 	tab:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	tab:RegisterForDrag("LeftButton")
-	W.Skin(tab)
-	W.Shadow(tab, 3)
-	W.Sheen(tab, 18, 0.05)
 
 	tab.icon = tab:CreateTexture(nil, "ARTWORK")
-	tab.icon:SetSize(24, 24)
-	tab.icon:SetPoint("CENTER")
-	tab.icon:SetTexture(W.LOGO)
+	tab.icon:SetAllPoints()
+	tab.icon:SetTexture(W.ICON)
+	tab.border = tab:CreateTexture(nil, "OVERLAY")
+	tab.border:SetAllPoints()
+	tab.border:SetTexture("Interface\\Common\\WhiteIconFrame")
+	tab.border:SetVertexColor(GOLD[1], GOLD[2], GOLD[3])
+	tab:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+	tab:SetPushedTexture("Interface\\Buttons\\UI-Quickslot-Depress")
 
-	tab.edge = tab:CreateTexture(nil, "OVERLAY")
-	tab.edge:SetPoint("BOTTOMLEFT", 1, 1)
-	tab.edge:SetPoint("BOTTOMRIGHT", -1, 1)
-	tab.edge:SetHeight(2)
-	tab.edge:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 0.9)
-
-	tab.badge = W.Badge(tab)
-	tab.badge:SetPoint("CENTER", tab, "TOPRIGHT", -3, -3)
-	tab.badge:SetFrameLevel(tab:GetFrameLevel() + 3)
+	-- Number of drops this run, in the corner like an item stack count.
+	tab.count = tab:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+	tab.count:SetPoint("BOTTOMRIGHT", -2, 2)
 
 	-- A gold pulse when something new drops while the log is tucked away.
 	tab.glow = tab:CreateTexture(nil, "OVERLAY", nil, 2)
-	tab.glow:SetPoint("TOPLEFT", -1, 1)
-	tab.glow:SetPoint("BOTTOMRIGHT", 1, -1)
-	tab.glow:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 1)
+	tab.glow:SetPoint("CENTER")
+	tab.glow:SetSize(TAB_SIZE * 1.7, TAB_SIZE * 1.7)
+	tab.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
 	tab.glow:SetBlendMode("ADD")
+	tab.glow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3])
 	tab.glow:SetAlpha(0)
 	tab.pulse = tab.glow:CreateAnimationGroup()
 	tab.pulse:SetLooping("BOUNCE")
 	local a = tab.pulse:CreateAnimation("Alpha")
 	a:SetFromAlpha(0)
-	a:SetToAlpha(0.3)
+	a:SetToAlpha(0.9)
 	a:SetDuration(0.6)
 	a:SetSmoothing("IN_OUT")
 
@@ -196,60 +180,47 @@ local function createTab()
 		end
 	end)
 	tab:SetScript("OnEnter", function(self)
-		self:SetBackdropBorderColor(C.accent[1], C.accent[2], C.accent[3], 0.9)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		GameTooltip:SetText("Roll Log", 1, 1, 1)
 		local s = currentSession()
 		if s then
-			GameTooltip:AddLine(ns.HistoryWindow.SessionLabel(s), C.muted[1], C.muted[2], C.muted[3])
+			GameTooltip:AddLine(ns.HistoryWindow.SessionLabel(s), GOLD[1], GOLD[2], GOLD[3])
 		end
-		GameTooltip:AddLine("Click to " .. (ns.settings.logCollapsed and "open" or "close") .. "   Drag to move", 1, 1, 1)
-		GameTooltip:AddLine("Right-click for the full history", C.muted[1], C.muted[2], C.muted[3])
+		GameTooltip:AddLine("Click to " .. (ns.settings.logCollapsed and "open" or "close") .. ". Drag to move.", 1, 1, 1)
+		GameTooltip:AddLine("Right-click for the full history.", 0.6, 0.6, 0.6)
 		GameTooltip:Show()
 	end)
-	tab:SetScript("OnLeave", function(self)
-		self:SetBackdropBorderColor(0, 0, 0, 1)
-		GameTooltip:Hide()
-	end)
+	tab:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	placeTab()
 end
 
 local function createPanel()
 	panel = CreateFrame("Frame", "NeedyLog", tab, "BackdropTemplate")
 	panel:SetWidth(PANEL_WIDTH)
-	W.Skin(panel)
-	W.Shadow(panel, 4)
+	W.NativeBox(panel, 0.85)
 	panel:EnableMouse(true)
 	panel:Hide()
 
-	local header = CreateFrame("Frame", nil, panel, "BackdropTemplate")
-	header:SetPoint("TOPLEFT", 1, -1)
-	header:SetPoint("TOPRIGHT", -1, -1)
-	header:SetHeight(HEADER_HEIGHT - 1)
-	header:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-	header:SetBackdropColor(C.raised[1], C.raised[2], C.raised[3], 1)
-	W.Sheen(header, HEADER_HEIGHT, 0.04)
-	local line = W.Hairline(header)
-	line:SetPoint("BOTTOMLEFT")
-	line:SetPoint("BOTTOMRIGHT")
+	panel.title = W.Text(panel, "GameFontNormal")
+	panel.title:SetPoint("TOPLEFT", 10, -8)
+	panel.title:SetText("Roll Log")
+	panel.sub = W.Text(panel, "GameFontDisableSmall")
+	panel.sub:SetPoint("TOPLEFT", panel.title, "BOTTOMLEFT", 0, -2)
+	panel.sub:SetWidth(PANEL_WIDTH - 50)
+	panel.sub:SetWordWrap(false)
+	panel.close = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
+	panel.close:SetPoint("TOPRIGHT", 0, 0)
+	panel.close:SetScript("OnClick", function() RollLog.Toggle() end)
+	local line = W.Hairline(panel)
+	line:SetPoint("TOPLEFT", 8, -HEADER_HEIGHT)
+	line:SetPoint("TOPRIGHT", -8, -HEADER_HEIGHT)
 
-	header.title = W.Text(header, "heading")
-	header.title:SetPoint("TOPLEFT", 10, -4)
-	header.title:SetText("Roll Log")
-	header.sub = W.Text(header, "tiny")
-	header.sub:SetPoint("TOPLEFT", header.title, "BOTTOMLEFT", 0, -1)
-	header.sub:SetWidth(PANEL_WIDTH - 60)
-	header.sub:SetWordWrap(false)
-	header.close = W.CloseButton(header, function() RollLog.Toggle() end)
-	header.close:SetPoint("RIGHT", -4, 0)
-	panel.header = header
-
-	panel.empty = W.Text(panel, "muted")
+	panel.empty = W.Text(panel, "GameFontDisable")
 	panel.empty:SetPoint("TOP", 0, -HEADER_HEIGHT - 12)
 	panel.empty:SetText("Nothing has dropped yet.")
 
-	panel.more = W.Text(panel, "tiny")
-	panel.more:SetPoint("BOTTOM", 0, 6)
+	panel.more = W.Text(panel, "GameFontDisableSmall")
+	panel.more:SetPoint("BOTTOM", 0, 8)
 
 	local g = panel:CreateAnimationGroup()
 	local fade = g:CreateAnimation("Alpha")
@@ -277,8 +248,7 @@ function RollLog.Refresh()
 	tab:Show()
 
 	local count = #s.drops
-	tab.badge:SetValue(count)
-	tab.badge:SetShown(count > 0)
+	tab.count:SetText(count > 0 and count or "")
 	if count > lastCount and ns.settings.logCollapsed and ns.settings.animations then
 		tab.pulse:Play()
 	end
@@ -291,32 +261,32 @@ function RollLog.Refresh()
 	tab.pulse:Stop()
 	tab.glow:SetAlpha(0)
 
-	panel.header.sub:SetText(ns.HistoryWindow.SessionLabel(s))
+	panel.sub:SetText(ns.HistoryWindow.SessionLabel(s))
 	for _, row in ipairs(rows) do row:Hide() end
 	local limit = math.min(ns.settings.logRows, count)
 	for i = 1, limit do
 		local drop = s.drops[count - i + 1] -- newest first
 		local row = rows[i]
 		if not row then
-			row = createRow(i)
+			row = createRow()
 			rows[i] = row
 		end
 		row:ClearAllPoints()
-		row:SetPoint("TOPLEFT", 1, -(HEADER_HEIGHT + 2 + (i - 1) * ROW_HEIGHT))
+		row:SetPoint("TOPLEFT", 8, -(HEADER_HEIGHT + 4 + (i - 1) * ROW_HEIGHT))
 		setRow(row, drop)
 		row:Show()
 	end
 	panel.empty:SetShown(count == 0)
 	local hidden = count - limit
 	panel.more:SetShown(hidden > 0)
-	panel.more:SetText(("+%d more  -  right-click the tab for all"):format(hidden))
-	local height = HEADER_HEIGHT + 4 + (count == 0 and 34 or limit * ROW_HEIGHT) + (hidden > 0 and 18 or 2)
+	panel.more:SetText(("+%d more - right-click the button for all"):format(hidden))
+	local height = HEADER_HEIGHT + 8 + (count == 0 and 34 or limit * ROW_HEIGHT) + (hidden > 0 and 20 or 4)
 	panel:SetHeight(height)
 	if not panel:IsShown() then
 		placePanel()
 		panel:Show()
 		if ns.settings.animations then
-			-- grow out of the tab's side
+			-- grow out of the button's side
 			panel.grow:SetOrigin(panel.growLeft and "TOPRIGHT" or "TOPLEFT", 0, 0)
 			panel.open:Play()
 		end
@@ -325,6 +295,9 @@ end
 
 function RollLog.Toggle()
 	ns.settings.logCollapsed = not ns.settings.logCollapsed
+	if PlaySound and SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON then
+		PlaySound(ns.settings.logCollapsed and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF or SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+	end
 	RollLog.Refresh()
 end
 

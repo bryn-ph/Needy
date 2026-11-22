@@ -19,6 +19,7 @@ New-Item -ItemType Junction -Path "$wow\Interface\AddOns\Needy" -Target "$PWD\Ne
 | `Needy/UI/` | The look and widgets (`Widgets`), roll bars (`RollFrame`), the Roll Log tab (`RollLog`), and the History and Awards windows |
 | `Needy/Config/` | The settings window, minimap icon and slash commands |
 | `Needy/Test/` | Test mode: fake rolls and a fake party |
+| `tools/` | The icon generator |
 | `tests/` | Offline tests that run the addon against a mocked WoW API |
 
 How it fits together:
@@ -41,6 +42,10 @@ python -m venv .venv
 ```
 
 CI runs both on every push and pull request, and builds the release zip without uploading it (see the run's artifacts).
+
+## Generated files
+
+- `Needy/Media/icon.tga` and `assets/logo.png`: the addon icon, from `tools\gen_icon.py` (source art `assets/rolling-dices.png`, CC BY 3.0, see README).
 
 ## Debugging
 

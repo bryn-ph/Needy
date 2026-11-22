@@ -5,11 +5,10 @@ local HistoryWindow = {}
 ns.HistoryWindow = HistoryWindow
 
 local W = ns.Widgets
-local C = W.C
 
-local WIDTH, HEIGHT = 580, 540
-local ROW_HEIGHT = 50
-local ROW_GAP = 4
+local WIDTH, HEIGHT = 600, 540
+local ROW_HEIGHT = 46
+local ROW_GAP = 3
 
 local win
 local rows = {}
@@ -39,11 +38,6 @@ function HistoryWindow.SessionLabel(s)
 	return name
 end
 
-local function duration(s)
-	local secs = (s.endTime or time()) - s.startTime
-	return ("%d min"):format(math.max(1, math.floor(secs / 60 + 0.5)))
-end
-
 local function playerCount(s)
 	local seen, n = {}, 0
 	for _, d in ipairs(s.drops) do
@@ -57,6 +51,28 @@ local function playerCount(s)
 	return n
 end
 
+local function summaryLine(s)
+	local mins = math.max(1, math.floor(((s.endTime or time()) - s.startTime) / 60 + 0.5))
+	local state
+	if s.isTest then
+		state = "|cffff9933test run|r"
+	elseif s.endTime then
+		state = "finished"
+	else
+		state = "|cff33ff33in progress|r"
+	end
+	return ("%s  -  %d drops, %d players, %d min  -  %s"):format(
+		date("%a %d %b %H:%M", s.startTime), #s.drops, playerCount(s), mins, state)
+end
+
+-- "Older run (2 of 5)" on the arrow buttons, instead of crowding the header.
+local function arrowTooltip(self)
+	GameTooltip:SetOwner(self, "ANCHOR_TOP")
+	GameTooltip:SetText(self.label, 1, 1, 1)
+	GameTooltip:AddLine(("Showing run %d of %d"):format(index, #HistoryWindow.List()), 0.8, 0.8, 0.8)
+	GameTooltip:Show()
+end
+
 -- Rows -------------------------------------------------------------------------------------------
 
 local function createRow(parent)
@@ -64,45 +80,28 @@ local function createRow(parent)
 	row:SetHeight(ROW_HEIGHT)
 	row:EnableMouse(true)
 
-	row.stripe = row:CreateTexture(nil, "ARTWORK")
-	row.stripe:SetPoint("TOPLEFT", 1, -1)
-	row.stripe:SetPoint("BOTTOMLEFT", 1, 1)
-	row.stripe:SetWidth(3)
-	row.tint = row:CreateTexture(nil, "BORDER")
-	row.tint:SetPoint("TOPLEFT", 4, -1)
-	row.tint:SetPoint("BOTTOMLEFT", 4, 1)
-	row.tint:SetWidth(120)
-
-	row.iconBorder = row:CreateTexture(nil, "ARTWORK")
-	row.iconBorder:SetSize(34, 34)
-	row.iconBorder:SetPoint("LEFT", 12, 0)
-	row.icon = row:CreateTexture(nil, "OVERLAY")
-	row.icon:SetPoint("TOPLEFT", row.iconBorder, "TOPLEFT", 1, -1)
-	row.icon:SetPoint("BOTTOMRIGHT", row.iconBorder, "BOTTOMRIGHT", -1, 1)
-	ns.CropIcon(row.icon)
-
-	row.itemButton = CreateFrame("Button", nil, row)
-	row.itemButton:SetPoint("TOPLEFT", row.iconBorder, "TOPRIGHT", 10, -1)
-	row.itemButton:SetHeight(16)
-	row.item = W.Text(row.itemButton, "body")
-	row.item:SetPoint("LEFT")
-	row.item:SetWordWrap(false)
-	row.itemButton:SetScript("OnEnter", function(self) W.ItemTooltip(self, row.drop and row.drop.link) end)
-	row.itemButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	row.itemButton:SetScript("OnClick", function()
+	row.icon = W.ItemIcon(row, 34)
+	row.icon:SetPoint("LEFT", 6, 0)
+	row.icon:SetScript("OnEnter", function(self) W.ItemTooltip(self, row.drop and row.drop.link) end)
+	row.icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	row.icon:SetScript("OnClick", function()
 		local link = row.drop and row.drop.link
 		if link and HandleModifiedItemClick then HandleModifiedItemClick(link) end
 	end)
 
-	row.meta = W.Text(row, "tiny")
-	row.meta:SetPoint("TOPLEFT", row.itemButton, "BOTTOMLEFT", 0, -4)
+	row.item = W.Text(row, "GameFontNormal")
+	row.item:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 8, -2)
+	row.item:SetWordWrap(false)
+
+	row.meta = W.Text(row, "GameFontHighlightSmall")
+	row.meta:SetPoint("TOPLEFT", row.item, "BOTTOMLEFT", 0, -5)
 	row.meta:SetWordWrap(false)
 
 	-- Winner block on the right: name, and how they won.
-	row.winner = W.Text(row, "body")
-	row.winner:SetPoint("TOPRIGHT", -12, -9)
+	row.winner = W.Text(row, "GameFontHighlight")
+	row.winner:SetPoint("TOPRIGHT", -10, -8)
 	row.winner:SetJustifyH("RIGHT")
-	row.how = W.Text(row, "tiny")
+	row.how = W.Text(row, "GameFontHighlightSmall")
 	row.how:SetPoint("TOPRIGHT", row.winner, "BOTTOMRIGHT", 0, -4)
 	row.how:SetJustifyH("RIGHT")
 
@@ -115,102 +114,90 @@ end
 
 local function setRow(row, drop, width)
 	row.drop = drop
-	local r, g, b = ns.QualityColor(W.DropQuality(drop))
-	row.stripe:SetColorTexture(r, g, b, 1)
-	W.SetFade(row.tint, r, g, b, 0.12)
-	row.iconBorder:SetColorTexture(r, g, b, 1)
-	row.icon:SetTexture(W.DropIcon(drop))
-	row.item:SetText(drop.name or (drop.link and drop.link:match("%[(.-)%]")) or "?")
-	row.item:SetTextColor(r, g, b)
+	local quality = W.DropQuality(drop)
+	row.icon:SetItem(W.DropIcon(drop), quality)
+	row.item:SetText(W.DropName(drop))
+	row.item:SetTextColor(ns.QualityColor(quality))
 
 	if drop.allPassed then
-		row.winner:SetText(("|c%sEveryone passed|r"):format(W.MUTED_HEX))
+		row.winner:SetText(("|c%sEveryone passed|r"):format(W.GREY_HEX))
 		row.how:SetText("")
 	elseif drop.winner then
 		local wr = drop.rolls[drop.winner] or {}
 		row.winner:SetText(ns.ColorName(drop.winner, drop.winnerClass or wr.class))
 		local how = wr.choice and ns.Choices[wr.choice] and ns.Choices[wr.choice].label or "Won"
-		row.how:SetText(ns.ChoiceIcon(wr.choice, 11) .. " " .. how .. (wr.roll and ("  |c%s%d|r"):format(W.ACCENT_HEX, wr.roll) or ""))
+		row.how:SetText(ns.ChoiceIcon(wr.choice, 12) .. " " .. how .. (wr.roll and (" |cffffffff" .. wr.roll .. "|r") or ""))
 	else
-		row.winner:SetText(("|c%srolling...|r"):format(W.MUTED_HEX))
+		row.winner:SetText(("|c%srolling...|r"):format(W.GREY_HEX))
 		row.how:SetText("")
 	end
 
-	local rightWidth = math.max(row.winner:GetStringWidth() or 0, row.how:GetStringWidth() or 0) + 24
-	local textWidth = math.max(40, width - 12 - 34 - 10 - rightWidth - 8)
-	row.itemButton:SetWidth(textWidth)
+	local rightWidth = math.max(W.StringWidth(row.winner), W.StringWidth(row.how)) + 20
+	local textWidth = math.max(40, width - 6 - 34 - 8 - rightWidth - 8)
 	row.item:SetWidth(textWidth)
 	row.meta:SetWidth(textWidth)
 
 	-- Boss and time, then everyone but the winner, fitted to the line.
 	local when = drop.time and date("%H:%M", drop.time) or ""
-	local boss = drop.encounterName and (drop.encounterName .. "  -  ") or ""
-	W.FitRoster(row.meta, drop, textWidth, { prefix = ("|c%s%s%s|r     "):format(W.MUTED_HEX, boss, when), exclude = drop.winner })
+	local boss = drop.encounterName and (drop.encounterName .. ", ") or ""
+	W.FitRoster(row.meta, drop, textWidth, { prefix = ("|c%s%s%s|r    "):format(W.GREY_HEX, boss, when), exclude = drop.winner })
 end
 
 -- Window ------------------------------------------------------------------------------------------
 
 local function create()
-	win = W.Window("NeedyHistory", "Roll History", WIDTH, HEIGHT)
+	win = W.Window("NeedyHistory", "Needy - Roll History", WIDTH, HEIGHT)
 	win:SetPoint("CENTER", -150, 30)
-	local c = win.content
 
-	-- Session switcher
-	win.prev = W.ArrowButton(c, "left", function() HistoryWindow.Step(-1) end)
-	win.prev:SetPoint("TOPLEFT", 14, -14)
-	win.next = W.ArrowButton(c, "right", function() HistoryWindow.Step(1) end)
-	win.next:SetPoint("LEFT", win.prev, "RIGHT", 4, 0)
+	-- Session switcher, to the right of the portrait
+	win.prev = W.PageButton(win, "prev", function() HistoryWindow.Step(-1) end)
+	win.prev:SetPoint("TOPLEFT", 60, -26)
+	win.next = W.PageButton(win, "next", function() HistoryWindow.Step(1) end)
+	win.next:SetPoint("LEFT", win.prev, "RIGHT", 0, 0)
+	win.prev.label, win.next.label = "Newer run", "Older run"
+	for _, b in ipairs({ win.prev, win.next }) do
+		b:SetMotionScriptsWhileDisabled(true)
+		b:SetScript("OnEnter", arrowTooltip)
+		b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	end
 
-	win.heading = W.Text(c, "big")
-	win.heading:SetPoint("TOPLEFT", win.next, "TOPRIGHT", 12, 2)
-	win.heading:SetPoint("RIGHT", c, "RIGHT", -150, 0)
+	win.awards = W.Button(win, "Run Awards", 110, 22)
+	win.awards:SetPoint("TOPRIGHT", -10, -28)
+
+	-- Heading and summary stop short of the button and cut off with "..." if they're long.
+	win.heading = W.Text(win, "GameFontNormalLarge")
+	win.heading:SetPoint("TOPLEFT", win.next, "TOPRIGHT", 6, -1)
+	win.heading:SetPoint("RIGHT", win.awards, "LEFT", -10, 0)
 	win.heading:SetWordWrap(false)
-	win.position = W.Text(c, "tiny")
-	win.position:SetPoint("TOPLEFT", win.heading, "BOTTOMLEFT", 0, -3)
+	win.sub = W.Text(win, "GameFontHighlightSmall")
+	win.sub:SetPoint("TOPLEFT", win.heading, "BOTTOMLEFT", 0, -3)
+	win.sub:SetPoint("RIGHT", win.awards, "LEFT", -10, 0)
+	win.sub:SetWordWrap(false)
 
-	win.awards = W.Button(c, "Run Awards", 120, 26, "accent")
-	win.awards:SetPoint("TOPRIGHT", -14, -13)
 	win.awards:SetScript("OnClick", function()
 		local s = HistoryWindow.List()[index]
 		if s then ns.SummaryWindow.Show(s) end
 	end)
 
-	-- Chips: drops, players, duration, state
-	win.chips = {}
-	local prevChip
-	for i = 1, 4 do
-		local chip = W.Chip(c)
-		if prevChip then
-			chip:SetPoint("LEFT", prevChip, "RIGHT", 6, 0)
-		else
-			chip:SetPoint("TOPLEFT", 14, -54)
-		end
-		win.chips[i] = chip
-		prevChip = chip
-	end
+	local inset = W.Inset(win)
+	inset:SetPoint("TOPLEFT", 8, -66)
+	inset:SetPoint("BOTTOMRIGHT", -8, 32)
 
-	local line = W.Hairline(c)
-	line:SetPoint("TOPLEFT", 1, -82)
-	line:SetPoint("TOPRIGHT", -1, -82)
+	win.scroll, win.list = W.ScrollArea(inset)
+	win.scroll:SetPoint("TOPLEFT", 6, -6)
+	win.scroll:SetPoint("BOTTOMRIGHT", -14, 6)
 
-	win.scroll, win.list = W.ScrollArea(c)
-	win.scroll:SetPoint("TOPLEFT", 14, -92)
-	win.scroll:SetPoint("BOTTOMRIGHT", -20, 50)
-
-	win.empty = W.Text(c, "muted")
+	win.empty = W.Text(inset, "GameFontDisable")
 	win.empty:SetPoint("CENTER", 0, 0)
 	win.empty:SetJustifyH("CENTER")
 	win.empty:SetWidth(380)
 
-	local footer = W.Hairline(c)
-	footer:SetPoint("BOTTOMLEFT", 1, 40)
-	footer:SetPoint("BOTTOMRIGHT", -1, 40)
-	win.hint = W.Text(c, "tiny")
-	win.hint:SetPoint("BOTTOMLEFT", 14, 15)
+	win.hint = W.Text(win, "GameFontDisableSmall")
+	win.hint:SetPoint("BOTTOMLEFT", 14, 12)
 	win.hint:SetText("Hover a row for everyone's rolls. Shift-click an item to link it.")
 
-	win.endRun = W.Button(c, "End run now", 110, 24)
-	win.endRun:SetPoint("BOTTOMRIGHT", -14, 9)
+	win.endRun = W.Button(win, "End run now", 110, 22)
+	win.endRun:SetPoint("BOTTOMRIGHT", -8, 6)
 	win.endRun:SetScript("OnClick", function()
 		local s = HistoryWindow.List()[index]
 		if s == ns.Tracker.testSession then
@@ -220,8 +207,8 @@ local function create()
 		end
 		HistoryWindow.Refresh()
 	end)
-	win.settings = W.Button(c, "Settings", 90, 24)
-	win.settings:SetPoint("BOTTOMRIGHT", -130, 9)
+	win.settings = W.Button(win, SETTINGS or "Settings", 90, 22)
+	win.settings:SetPoint("BOTTOMRIGHT", -120, 6)
 	win.settings:SetScript("OnClick", function() ns.SettingsWindow.Show() end)
 
 	local function refreshIfShown()
@@ -251,25 +238,14 @@ function HistoryWindow.Refresh()
 	for _, row in ipairs(rows) do row:Hide() end
 	if not s then
 		win.heading:SetText("No runs yet")
-		win.position:SetText("")
-		for _, chip in ipairs(win.chips) do chip:Hide() end
-		win.empty:SetText("Rolls are recorded while you're in a dungeon or raid.\n\nTry |cffffc747/needy test|r to see Needy in action.")
+		win.sub:SetText("")
+		win.empty:SetText("Rolls are recorded while you're in a dungeon or raid.\n\nTry |cffffd100/needy test|r to see Needy in action.")
 		win.empty:Show()
 		return
 	end
 
 	win.heading:SetText(HistoryWindow.SessionLabel(s))
-	win.position:SetText(("%s   -   run %d of %d"):format(date("%a %d %b, %H:%M", s.startTime), index, #list))
-	local chipText = {
-		("%d drops"):format(#s.drops),
-		("%d players"):format(playerCount(s)),
-		duration(s),
-		s.isTest and "|cffff9933test run|r" or (s.endTime and "finished" or "|cff59e673in progress|r"),
-	}
-	for i, chip in ipairs(win.chips) do
-		chip:SetValue(chipText[i])
-		chip:Show()
-	end
+	win.sub:SetText(summaryLine(s))
 	win.empty:SetShown(#s.drops == 0)
 	win.empty:SetText("Nothing has dropped yet.")
 

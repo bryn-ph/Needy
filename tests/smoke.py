@@ -191,7 +191,7 @@ run = lua.eval("""function(ns)
   local awards = ns.Titles.Compute(last)
   local keys = {}
   for _, a in ipairs(awards) do keys[a.key] = a end
-  assert(keys.hoarder, "Loot Hoarder awarded")
+  assert(keys.hoarder or keys.golden, "the hoarder gets Loot Hoarder or Golden Hands")
   assert(keys.saint, "The Saint awarded")
   local lines = ns.SummaryWindow.AnnounceLines(last)
   assert(#lines == #awards + 1, "one chat line per award plus header")
@@ -245,13 +245,41 @@ run = lua.eval("""function(ns)
   assert(st.A.needs == 2 and st.A.wins == 2 and st.A.losses == 1, "A stats")
   assert(st.B.losses == 2 and st.B.seconds == 2, "B lost twice, second twice")
   assert(st.C.passes == 3, "C passed 3 times")
+  -- A short run: B's roll of 1 is the only thing that stands out (B also needed most, but gets one title).
+  local small = ns.Titles.Compute(hand)
+  assert(#small == 1 and small[1].key == "critfail" and small[1].players[1].name == "B", "small run: just Critical Fail")
+
+  -- A longer run with clear standouts: A needs and wins everything, B rolls low and wins nothing,
+  -- C passes on everything, D lets most rolls time out.
+  local run = { drops = {} }
+  for i = 1, 6 do
+    run.drops[i] = { key = "r" .. i, winner = "A", rolls = {
+      A = { choice = "need", roll = 60 + i }, B = { choice = "greed", roll = 10 + i },
+      C = { choice = "pass" }, D = { choice = i <= 4 and "none" or "pass" },
+    } }
+  end
   local aw = {}
-  for _, a in ipairs(ns.Titles.Compute(hand)) do aw[a.key] = a end
-  assert(aw.hoarder.players[1].name == "B" and #aw.hoarder.players == 1, "B needed most")
-  assert(aw.golden.players[1].name == "A", "A won most")
-  assert(aw.saint.players[1].name == "C", "C is the saint")
-  assert(aw.low.title == "Critical Fail", "a roll of 1 is a Critical Fail")
-  assert(aw.bridesmaid.players[1].name == "B", "B is the bridesmaid")
+  local list = ns.Titles.Compute(run)
+  for _, a in ipairs(list) do aw[a.key] = a end
+  assert(#list == 4, "one title each for A, B, C and D, got " .. #list)
+  local aTitle = aw.hoarder or aw.golden -- A needed and won everything: either title fits
+  assert(aTitle and aTitle.players[1].name == "A", "A gets Loot Hoarder or Golden Hands")
+  assert(not (aw.hoarder and aw.golden), "A doesn't get both (one title each)")
+  local bTitle = aw.unlucky or aw.bridesmaid -- B lost every roll, always to A: either title fits
+  assert(bTitle and bTitle.players[1].name == "B" and not (aw.unlucky and aw.bridesmaid), "B gets Unlucky or Bridesmaid")
+  assert(aw.saint and aw.saint.players[1].name == "C", "C is The Saint")
+  assert(aw.asleep and aw.asleep.players[1].name == "D", "D is Asleep at the Wheel")
+
+  -- A tie for the lead earns nothing.
+  local tie = { drops = {} }
+  for i = 1, 4 do
+    tie.drops[i] = { key = "t" .. i, winner = (i % 2 == 0) and "A" or "B", rolls = {
+      A = { choice = "need", roll = 50 + i }, B = { choice = "need", roll = 40 + i },
+    } }
+  end
+  for _, a in ipairs(ns.Titles.Compute(tie)) do
+    assert(a.key ~= "hoarder", "tied needs give no Loot Hoarder")
+  end
   return #awards
 end""")
 try:

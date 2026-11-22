@@ -10,6 +10,8 @@ ignore:
   - CHANGELOG.md
   - CONTRIBUTING.md
   - requirements-dev.txt
+  - tools
+  - assets
   - tests
 
 manual-changelog:

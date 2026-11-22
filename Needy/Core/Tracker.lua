@@ -93,7 +93,8 @@ function Tracker.Finish(session, opts)
 	end
 	ns.Fire("SESSION_END", session)
 	if opts.silent or not hasDrops then return end
-	if session.isTest or ns.settings.showSummary then
+	-- Test runs always show the window; real ones only when it's switched on and someone earned a title.
+	if session.isTest or (ns.settings.showSummary and #ns.Titles.Compute(session) > 0) then
 		ns.SummaryWindow.Show(session)
 	end
 end
