@@ -1,4 +1,5 @@
--- End-of-run awards. Pure data and maths over a session, no UI, so it's easy to tweak and to test offline.
+-- End-of-run awards and stats. Pure data and maths over a session, no UI, so it's easy to tweak and to test
+-- offline.
 --
 -- Awards are meant to land, not to hand everyone a participation trophy:
 --   * a "most" award needs a clear winner whose count clears a minimum, leads the next player by at least
@@ -68,11 +69,38 @@ local function newStats(class)
 		class = class, drops = 0,
 		needs = 0, greeds = 0, passes = 0, noRolls = 0,
 		wins = 0, losses = 0, seconds = 0,
-		rollCount = 0, high = nil, low = nil,
+		rollCount = 0, rollSum = 0, high = nil, low = nil,
+		contests = 0, contestWins = 0, expected = 0, -- for luck
 	}
 end
 
 local CHOICE_FIELD = { need = "needs", greed = "greeds", pass = "passes", none = "noRolls" }
+
+-- Luck is wins against expected wins. Everyone in the bracket that took the item (main-spec need, off-spec
+-- need, or greed) had an equal chance, so each expected 1/n of it; anyone in a lower bracket had no chance.
+local function countLuck(drop, stats)
+	local rolls = drop.rolls or {}
+	local won = drop.winner and rolls[drop.winner]
+	if not won or not ns.IsRollChoice(won.choice) then return end
+	local bracket = {}
+	for name, r in pairs(rolls) do
+		if r.choice == won.choice and not r.offSpec == not won.offSpec then
+			table.insert(bracket, name)
+		end
+	end
+	for _, name in ipairs(bracket) do
+		local s = stats[name]
+		s.contests = s.contests + 1
+		s.expected = s.expected + 1 / #bracket
+		if name == drop.winner then s.contestWins = s.contestWins + 1 end
+	end
+end
+
+-- Items won above (+) or below (-) what even odds would give, or nil for someone who was never in with a chance.
+function Titles.Luck(s)
+	if s.contests == 0 then return nil end
+	return s.contestWins - s.expected
+end
 
 function Titles.IsResolved(drop)
 	return drop.winner ~= nil or drop.allPassed == true
@@ -102,6 +130,7 @@ function Titles.Stats(session)
 					end
 					if type(r.roll) == "number" then
 						s.rollCount = s.rollCount + 1
+						s.rollSum = s.rollSum + r.roll
 						s.high = math.max(s.high or r.roll, r.roll)
 						s.low = math.min(s.low or r.roll, r.roll)
 						table.insert(ranked, { name = name, tier = ns.CHOICE_TIER[r.choice], roll = r.roll })
@@ -116,6 +145,7 @@ function Titles.Stats(session)
 				end
 				w.wins = w.wins + 1
 			end
+			countLuck(drop, stats)
 			table.sort(ranked, function(a, b)
 				if a.tier ~= b.tier then return a.tier > b.tier end
 				return a.roll > b.roll
@@ -127,6 +157,38 @@ function Titles.Stats(session)
 		end
 	end
 	return stats, resolved
+end
+
+-- The whole run's numbers, for the Stats page, and the per-player ones they're added up from.
+function Titles.Totals(session)
+	local stats, resolved = Titles.Stats(session)
+	local t = {
+		items = resolved, unfinished = #(session.drops or {}) - resolved,
+		needWins = 0, greedWins = 0, allPassed = 0, rolls = 0,
+	}
+	for _, drop in ipairs(session.drops or {}) do
+		if drop.winner then
+			local r = drop.rolls and drop.rolls[drop.winner]
+			if r and r.choice == "need" then
+				t.needWins = t.needWins + 1
+			elseif r and r.choice == "greed" then
+				t.greedWins = t.greedWins + 1
+			end
+		elseif drop.allPassed then
+			t.allPassed = t.allPassed + 1
+		end
+	end
+	local count, sum = 0, 0
+	for _, s in pairs(stats) do
+		t.rolls = t.rolls + s.needs + s.greeds -- every roll made, even if we never saw its number
+		count, sum = count + s.rollCount, sum + s.rollSum
+		if s.high then
+			t.high = math.max(t.high or s.high, s.high)
+			t.low = math.min(t.low or s.low, s.low)
+		end
+	end
+	if count > 0 then t.average = sum / count end
+	return t, stats
 end
 
 -- Who (if anyone) earns `def`, and how strongly. Returns names, value, score.

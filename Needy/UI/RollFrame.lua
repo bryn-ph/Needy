@@ -14,6 +14,7 @@ local BUTTON_SIZE = 30
 local RESULT_LINGER = 1.8 -- seconds a finished bar stays up after the result shows
 local ANIM_SPEED = 0.6 -- Blizzard's need-roll animation, played a little faster (1 = their timing)
 local REVEAL_TIME = 3.4 * ANIM_SPEED -- when the number lands in that animation
+local WISH_PREFIX_WIDTH = 180 -- narrower status lines leave the word out; the glow says it
 local WAIT_LINGER = 45 -- seconds a closed bar waits for the result before giving up
 
 local anchor
@@ -463,6 +464,9 @@ end
 local function rosterLine(bar)
 	local drop = bar.drop
 	local prefix = bar.selfRoll and ("|c%sYou rolled %d|r   "):format(W.GOLD_HEX, bar.selfRoll) or ""
+	if bar.wished and (bar.statusWidth or 0) >= WISH_PREFIX_WIDTH then
+		prefix = ("|c%sWishlist!|r  "):format(W.GOLD_HEX) .. prefix
+	end
 	if not drop then
 		local text = prefix
 		local mine = bar.roll and bar.roll.myChoice
@@ -493,6 +497,25 @@ local function resultText(drop)
 		text = ("|c%sYours!|r  "):format(W.GOLD_HEX) .. text
 	end
 	return text, mine
+end
+
+-- Dress or undress a bar for an item on the wishlist.
+local function setWished(bar, wished)
+	if (bar.wished or false) == wished then return end
+	bar.wished = wished
+	if wished then
+		bar.wishGlow = bar.wishGlow or ns.WishlistGlow.Create(bar, bar.icon)
+		bar.wishGlow:Start(ns.settings.animations)
+		bar:SetBackdropColor(0.22, 0.14, 0, 0.92)
+		bar:SetBackdropBorderColor(GOLD[1], GOLD[2], GOLD[3], 1)
+		return
+	end
+	bar.wishGlow:Stop()
+	bar:SetBackdropColor(0, 0, 0, 0.85)
+	if bar.roll and not (bar.resultShown and bar.youWon) then
+		local r, g, b = ns.QualityColor(bar.roll.quality)
+		bar:SetBackdropBorderColor(r, g, b, 1)
+	end
 end
 
 local function stopAnimations(bar)
@@ -623,6 +646,7 @@ function RollFrame.Release(bar)
 	if bar.drop then barsByDrop[bar.drop.key] = nil end
 	if bar.roll then ns.LootSource.Forget(bar.roll.id) end
 	stopAnimations(bar)
+	setWished(bar, false)
 	bar:Hide()
 	bar.roll, bar.drop, bar.fadeAt, bar.selfRoll, bar.resultShown = nil, nil, nil, nil, nil
 	table.insert(pool, bar)
@@ -659,6 +683,7 @@ local function onRollStart(roll)
 
 	table.insert(bars, bar)
 	bar:Show()
+	setWished(bar, ns.Wishlist.Matches(roll))
 	layout()
 	refreshBar(bar)
 	if ns.settings.animations then
@@ -694,6 +719,15 @@ function RollFrame.Init()
 	hookBlizzard()
 
 	ns.Listen("ROLL_START", onRollStart)
+	ns.Listen("WISHLIST_CHANGED", function()
+		for _, bar in ipairs(bars) do
+			local wished = ns.Wishlist.Matches(bar.roll)
+			if wished ~= (bar.wished or false) then
+				setWished(bar, wished)
+				refreshBar(bar)
+			end
+		end
+	end)
 	ns.Listen("ROLL_CHOSEN", function(roll)
 		local bar = barForRoll(roll.id)
 		if bar then refreshBar(bar) end

@@ -4,6 +4,7 @@
     "workspace.ignoreDir": [".venv", ".release", "tests"],
     "diagnostics.globals": [
         "NeedyDB",
+        "NeedyCharDB",
         "SLASH_NEEDY1",
         "Needy_OnAddonCompartmentClick",
         "NeedyMinimapButton"

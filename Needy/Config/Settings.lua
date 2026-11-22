@@ -61,6 +61,14 @@ local function newPage(key, title, blurb)
 		h:SetPoint("TOPLEFT", 0, self.y)
 		h.line:SetPoint("RIGHT", self, "RIGHT", 0, 0)
 		self.y = self.y - 22
+		return h
+	end
+	-- A control that takes whatever room is left.
+	function page:Fill(control)
+		control:SetPoint("TOPLEFT", 0, self.y)
+		control:SetPoint("BOTTOMRIGHT")
+		table.insert(self.controls, control)
+		return control
 	end
 	function page:Check(label, tip, key, after)
 		local get, set = setting(key, after)
@@ -124,9 +132,15 @@ local function buildPages()
 		{ "Open history", function() ns.HistoryWindow.Show() end, 120 },
 	})
 
+	-- Wishlist -----------------------------------------------------------------
+	p = newPage("wishlist", "Wishlist", "The items this character is after. When one comes up for a roll, its bar lights up.")
+	p:Check("Wishlist sound", "A fanfare when an item on your wishlist comes up for a roll.", "wishlistSound")
+	local tracked = p:Header("Tracked items")
+	p:Fill(ns.WishlistPanel.Create(p, PAGE_WIDTH, tracked))
+
 	-- End of run ---------------------------------------------------------------
 	p = newPage("awards", "End of Run", "When you leave the instance, Needy hands out titles: Loot Hoarder, Unlucky, The Saint and friends.")
-	p:Check("Show the awards window", "Opens the Run Awards when the run ends. You can post them to group chat from there.", "showSummary")
+	p:Check("Show the awards window", "Opens the Run Report on its awards when the run ends. The run's stats are on its second tab.", "showSummary")
 	p:Buttons({
 		{ "Preview awards", function() ns.TestMode.Run() end, 130 },
 	})
@@ -143,6 +157,9 @@ local function buildPages()
 		{ "More rolls", function() ns.TestMode.Start(2) end, 100 },
 		{ "End test run", function() ns.TestMode.End() end, 100 },
 		{ "Simulate run", function() ns.TestMode.Run() end, 110 },
+	})
+	p:Buttons({
+		{ "Test wishlist drop", function() ns.TestMode.Wish() end, 150 },
 	})
 	p:Header("Data")
 	local armed = false
@@ -168,6 +185,7 @@ end
 local TABS = {
 	{ "rolls", "Roll Frame" },
 	{ "log", "Roll Log" },
+	{ "wishlist", "Wishlist" },
 	{ "awards", "End of Run" },
 	{ "general", "General" },
 }
@@ -177,9 +195,7 @@ local function selectPage(key)
 	for k, page in pairs(pages) do
 		page:SetShown(k == key)
 	end
-	for i, def in ipairs(TABS) do
-		if def[1] == key and PanelTemplates_SetTab then PanelTemplates_SetTab(win, i) end
-	end
+	win:SelectTab(key)
 	pages[key]:Refresh()
 end
 
@@ -198,28 +214,12 @@ local function create()
 
 	buildPages()
 
-	win.Tabs = {}
-	for i, def in ipairs(TABS) do
-		local tab = CreateFrame("Button", "NeedySettingsTab" .. i, win, "PanelTabButtonTemplate")
-		tab:SetID(i)
-		tab:SetText(def[2])
-		if i == 1 then
-			tab:SetPoint("TOPLEFT", win, "BOTTOMLEFT", 11, 2)
-		else
-			tab:SetPoint("LEFT", win.Tabs[i - 1], "RIGHT", 3, 0)
-		end
-		tab:SetScript("OnClick", function()
-			selectPage(def[1])
-			if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then
-				PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)
-			end
-		end)
-		win.Tabs[i] = tab
-	end
-	if PanelTemplates_SetNumTabs then PanelTemplates_SetNumTabs(win, #TABS) end
-
+	W.Tabs(win, "NeedySettings", TABS, selectPage)
 	selectPage("rolls")
 	win:HookScript("OnShow", function() SettingsWindow.Refresh() end)
+	ns.Listen("WISHLIST_CHANGED", function()
+		if win:IsShown() and current == "wishlist" then SettingsWindow.Refresh() end
+	end)
 end
 
 function SettingsWindow.Refresh()

@@ -87,7 +87,36 @@ function Widgets.ItemIcon(parent, size)
 		local r, g, b = ns.QualityColor(quality)
 		self.border:SetVertexColor(r, g, b)
 	end
+	-- The wishlist diamond on the icon's corner.
+	function f:SetWished(wished)
+		if wished and not self.mark then
+			local markSize = math.max(11, math.floor(size * 0.42))
+			self.mark = self:CreateTexture(nil, "OVERLAY", nil, 7)
+			self.mark:SetTexture(ns.Wishlist.MARK)
+			self.mark:SetSize(markSize, markSize)
+			self.mark:SetPoint("CENTER", self, "TOPLEFT", 3, -3)
+		end
+		if self.mark then self.mark:SetShown(wished) end
+	end
 	return f
+end
+
+-- The purple "Wishlist" tag.
+function Widgets.WishTag(parent)
+	local tag = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+	tag:SetBackdrop(Widgets.FLAT_BACKDROP)
+	tag:SetBackdropColor(0.64, 0.21, 0.93, 0.28) -- the diamond's purple
+	tag:SetBackdropBorderColor(0.74, 0.4, 1, 0.8)
+	local mark = tag:CreateTexture(nil, "ARTWORK")
+	mark:SetTexture(ns.Wishlist.MARK)
+	mark:SetSize(10, 10)
+	mark:SetPoint("LEFT", 4, 0)
+	local label = Widgets.Text(tag, "GameFontHighlightSmall")
+	label:SetPoint("LEFT", mark, "RIGHT", 3, 0)
+	label:SetText("Wishlist")
+	tag.fullWidth = Widgets.StringWidth(label) + 22
+	tag:SetSize(tag.fullWidth, 15)
+	return tag
 end
 
 -- Buttons and controls -------------------------------------------------------------------------------
@@ -253,6 +282,35 @@ function Widgets.Window(name, title, width, height)
 	f:Hide()
 	table.insert(UISpecialFrames, name) -- Esc closes it
 	return f
+end
+
+-- Tabs along the bottom of a window, named <window name>Tab<i>. items = { { key, text }, ... }.
+-- onClick(key) runs on a click; win:SelectTab(key) lights one up.
+function Widgets.Tabs(win, name, items, onClick)
+	win.Tabs = {}
+	for i, def in ipairs(items) do
+		local tab = CreateFrame("Button", name .. "Tab" .. i, win, "PanelTabButtonTemplate")
+		tab:SetID(i)
+		tab:SetText(def[2])
+		if i == 1 then
+			tab:SetPoint("TOPLEFT", win, "BOTTOMLEFT", 11, 2)
+		else
+			tab:SetPoint("LEFT", win.Tabs[i - 1], "RIGHT", 3, 0)
+		end
+		tab:SetScript("OnClick", function()
+			onClick(def[1])
+			if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then
+				PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)
+			end
+		end)
+		win.Tabs[i] = tab
+	end
+	if PanelTemplates_SetNumTabs then PanelTemplates_SetNumTabs(win, #items) end
+	function win:SelectTab(key)
+		for i, def in ipairs(items) do
+			if def[1] == key and PanelTemplates_SetTab then PanelTemplates_SetTab(self, i) end
+		end
+	end
 end
 
 -- A recessed panel (InsetFrameTemplate) for lists.

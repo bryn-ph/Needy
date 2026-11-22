@@ -93,6 +93,9 @@ local function createRow(parent)
 	row.item:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 8, -2)
 	row.item:SetWordWrap(false)
 
+	row.tag = W.WishTag(row)
+	row.tag:SetPoint("LEFT", row.item, "RIGHT", 6, 0)
+
 	row.meta = W.Text(row, "GameFontHighlightSmall")
 	row.meta:SetPoint("TOPLEFT", row.item, "BOTTOMLEFT", 0, -5)
 	row.meta:SetWordWrap(false)
@@ -134,7 +137,15 @@ local function setRow(row, drop, width)
 
 	local rightWidth = math.max(W.StringWidth(row.winner), W.StringWidth(row.how)) + 20
 	local textWidth = math.max(40, width - 6 - 34 - 8 - rightWidth - 8)
-	row.item:SetWidth(textWidth)
+	local wished = ns.Wishlist.Matches(drop)
+	row.tag:SetShown(wished)
+	if wished then
+		-- just wide enough for the name, so the tag sits beside it
+		local room = textWidth - row.tag.fullWidth - 6
+		row.item:SetWidth(math.max(40, math.min(W.StringWidth(row.item) + 2, room)))
+	else
+		row.item:SetWidth(textWidth)
+	end
 	row.meta:SetWidth(textWidth)
 
 	-- Boss and time, then everyone but the winner, fitted to the line.
@@ -161,7 +172,7 @@ local function create()
 		b:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	end
 
-	win.awards = W.Button(win, "Run Awards", 110, 22)
+	win.awards = W.Button(win, "Run Report", 110, 22)
 	win.awards:SetPoint("TOPRIGHT", -10, -28)
 
 	-- Heading and summary stop short of the button and cut off with "..." if they're long.
@@ -217,6 +228,7 @@ local function create()
 	ns.Listen("DROP_UPDATE", refreshIfShown)
 	ns.Listen("SESSION_START", refreshIfShown)
 	ns.Listen("SESSION_END", refreshIfShown)
+	ns.Listen("WISHLIST_CHANGED", refreshIfShown)
 end
 
 function HistoryWindow.Step(delta)
