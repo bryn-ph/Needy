@@ -13,11 +13,6 @@ function ns.Debug(...)
 	end
 end
 
--- Escape "|" so text can't inject chat markup when printed.
-function ns.Escape(text)
-	return (tostring(text):gsub("|", "||"))
-end
-
 -- Midnight-style secret values: can be passed along but not compared, indexed or concatenated.
 function ns.IsSecret(value)
 	return issecretvalue ~= nil and issecretvalue(value) == true
@@ -58,6 +53,7 @@ end)
 --   ROLL_SELF_RESULT(rollID, roll, isWinning)
 --   DROP_UPDATE(drop)         someone's choice/roll/winner changed for a drop
 --   SESSION_START(session) / SESSION_END(session)
+--   WISHLIST_CHANGED()
 
 local listeners = {}
 
@@ -85,10 +81,12 @@ ns.On("ADDON_LOADED", function(_, name)
 	ns.DB.Init()
 	ns.LootSource.Init()
 	ns.Tracker.Init()
+	ns.Wishlist.Init()
 	ns.RollFrame.Init()
 	ns.RollLog.Init()
 	ns.SettingsWindow.Register()
 	ns.MinimapButton.Init()
+	ns.On("PLAYER_LOGIN", ns.DungeonJournal.Init) -- by then every addon has loaded
 end)
 
 -- Referenced by the TOC's AddonCompartmentFunc.

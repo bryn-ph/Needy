@@ -12,6 +12,13 @@ local rolls = {} -- rollID -> roll
 -- WoW: Forever has no transmog rolls; should the state ever turn up, count it as greed.
 local STATE_CHOICE = { [0] = "need", [1] = "need", [2] = "greed", [3] = "greed", [4] = "none", [5] = "pass" }
 
+-- An off-spec need loses to any main-spec one, which matters for working out someone's chance.
+local function isOffSpec(state)
+	local e = Enum and Enum.EncounterLootDropRollState
+	if e then return state == e.NeedOffSpec end
+	return state == 1
+end
+
 local function choiceForState(state)
 	local e = Enum and Enum.EncounterLootDropRollState
 	if e then
@@ -137,6 +144,7 @@ function LootSource.NormalizeDrop(encounterID, info)
 			if ns.IsSecret(roll) then roll = nil end
 			drop.rolls[name] = {
 				choice = choiceForState(r.state),
+				offSpec = isOffSpec(r.state) or nil,
 				roll = type(roll) == "number" and roll or nil,
 				class = r.playerClass,
 				isSelf = r.isSelf == true,

@@ -8,6 +8,7 @@ ns.Defaults = {
 	scale = 1,
 	barWidth = 360,
 	animations = true, -- the game's need-roll dice animation on results, pop-in for new bars
+	wishlistSound = true, -- a fanfare when a wishlist item comes up for a roll
 	showLog = true, -- small on-screen list of this run's drops
 	logRows = 8,
 	logCollapsed = true, -- the Roll Log starts as just its tab

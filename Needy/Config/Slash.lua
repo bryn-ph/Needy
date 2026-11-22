@@ -19,7 +19,7 @@ add("history", "show the roll history (also just /needy)", function()
 	ns.HistoryWindow.Toggle()
 end)
 
-add("summary", "show the awards for the current or last run", function()
+add("summary", "show the awards and stats for the current or last run", function()
 	local s = ns.Tracker.session or ns.Tracker.testSession or ns.Tracker.lastTest or ns.DB.Sessions()[1]
 	ns.SummaryWindow.Show(s)
 end)
@@ -30,11 +30,13 @@ add("end", "end the current run now and hand out the awards", function()
 	end
 end)
 
-add("test", "[more | end | run | keep] try it out with a fake party", function(arg)
+add("test", "[more | wish | end | run | keep] try it out with a fake party", function(arg)
 	if arg == "" or arg == "start" then
 		ns.TestMode.Start(3)
 	elseif arg == "more" then
 		ns.TestMode.Start(2)
+	elseif arg == "wish" then
+		ns.TestMode.Wish()
 	elseif arg == "end" or arg == "stop" then
 		ns.TestMode.End()
 	elseif arg == "run" then
@@ -43,8 +45,12 @@ add("test", "[more | end | run | keep] try it out with a fake party", function(a
 		ns.settings.keepTestSessions = not ns.settings.keepTestSessions
 		ns.Print("Test runs will " .. (ns.settings.keepTestSessions and "be saved to" or "not be saved to") .. " history.")
 	else
-		ns.Print("/needy test, /needy test more, /needy test end, /needy test run, /needy test keep")
+		ns.Print("/needy test, /needy test more, /needy test wish, /needy test end, /needy test run, /needy test keep")
 	end
+end)
+
+add("wishlist", "show this character's wishlist", function()
+	ns.SettingsWindow.Show("wishlist")
 end)
 
 add("log", "show or hide the on-screen roll log", function()
@@ -91,13 +97,14 @@ add("debug", "toggle debug output", function()
 	ns.Print("debug " .. (ns.debug and "on" or "off"))
 end)
 
-add("reset", "forget all saved runs and settings", function(arg)
+add("reset", "forget saved runs, settings and this character's wishlist", function(arg)
 	if arg ~= "confirm" then
-		ns.Print("This deletes every saved run and resets settings. Type |cffffd100/needy reset confirm|r to go ahead.")
+		ns.Print("This deletes every saved run and this character's wishlist, and resets settings. Type |cffffd100/needy reset confirm|r to go ahead.")
 		return
 	end
 	ns.DB.Reset()
 	ns.Tracker.Reset()
+	ns.Wishlist.Clear()
 	ns.RollFrame.ResetPosition()
 	ns.RollLog.ResetPosition()
 	ns.RollFrame.ApplySettings()

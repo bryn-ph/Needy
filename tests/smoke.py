@@ -105,11 +105,35 @@ function UnitName() return "Tester" end
 function UnitClass() return "Mage", "MAGE" end
 function IsInInstance() return false, "none" end
 function GetInstanceInfo() return "Nowhere", "none", 0, "", 5, 0, false, 0 end
-function IsInGroup() return false end
-function IsInRaid() return false end
-function InCombatLockdown() return false end
 function Ambiguate(n) return (n:gsub("%-.*$", "")) end
 function geterrorhandler() return function(e) error(e, 0) end end
+function hooksecurefunc(tbl, key, hook)
+  local orig = tbl[key]
+  tbl[key] = function(...) orig(...); hook(...) end
+end
+SOUNDKIT = { UI_LEGENDARY_LOOT_TOAST = 63971 }
+__sounds = {}
+function PlaySound(id, channel) __sounds[#__sounds + 1] = id end
+
+-- The parts of DungeonJournal that Needy hooks.
+local journal = {}
+ForeverDungeonJournal_NS = journal
+function journal.ShowItemFavouriteMenu()
+  local menu = journal.favouriteContextMenu
+  if not menu then
+    menu = newObj("Frame")
+    menu.button = newObj("Button")
+    journal.favouriteContextMenu = menu
+  end
+  menu:Show()
+end
+function journal.HideItemFavouriteMenu() journal.favouriteContextMenu:Hide() end
+function journal.UpdateFavouriteIndicator() end
+journal.ORDER = { "Deep Cave" }
+journal.DB = { ["Deep Cave"] = { bosses = {
+  { name = "Recipes", recipeTab = true, loot = { { 4242, "Shiny Hat", "Head", 3 } } },
+  { name = "Big Troll", loot = { { 4242, "Shiny Hat", "Head", 3 } } },
+} } }
 function RollOnLoot(id, t) __lastRoll = { id, t } end
 
 local nextItem = 0
@@ -142,6 +166,7 @@ run = lua.eval("""function(ns)
   ef.__scripts.OnEvent(ef, "PLAYER_ENTERING_WORLD")
   assert(ns.settings and ns.settings.replaceBlizzard == true, "settings loaded")
 
+  ef.__scripts.OnEvent(ef, "PLAYER_LOGIN")
   -- Live test: three bars appear, we click Need on the first, everything resolves.
   SlashCmdList.NEEDY("test")
   __flush(0.5)
@@ -193,9 +218,16 @@ run = lua.eval("""function(ns)
   for _, a in ipairs(awards) do keys[a.key] = a end
   assert(keys.hoarder or keys.golden, "the hoarder gets Loot Hoarder or Golden Hands")
   assert(keys.saint, "The Saint awarded")
-  local lines = ns.SummaryWindow.AnnounceLines(last)
-  assert(#lines == #awards + 1, "one chat line per award plus header")
   SlashCmdList.NEEDY("summary")
+  -- Awards and Stats tabs of the Run Report.
+  local report = _G.NeedySummary
+  assert(report.awardsPage:IsShown() and not report.statsPage:IsShown(), "report opens on Awards")
+  _G.NeedySummaryTab2:Click()
+  assert(report.statsPage:IsShown() and not report.awardsPage:IsShown(), "Stats tab shows the stats")
+  assert(report.statsPage.tiles.items.value:GetText() == "12", "stats count the run's 12 items")
+  assert(#report.statsPage.rows >= 6, "a line for each of the six players")
+  _G.NeedySummaryTab1:Click()
+  assert(report.awardsPage:IsShown() and not report.statsPage:IsShown(), "Awards tab switches back")
   SlashCmdList.NEEDY("history")
   SlashCmdList.NEEDY("options")
   assert(_G.NeedySettings:IsShown(), "settings window opens")
@@ -245,6 +277,33 @@ run = lua.eval("""function(ns)
   assert(st.A.needs == 2 and st.A.wins == 2 and st.A.losses == 1, "A stats")
   assert(st.B.losses == 2 and st.B.seconds == 2, "B lost twice, second twice")
   assert(st.C.passes == 3, "C passed 3 times")
+  local totals = ns.Titles.Totals(hand)
+  assert(totals.items == 3 and totals.unfinished == 1, "totals count finished drops only")
+  assert(totals.needWins == 3 and totals.greedWins == 0 and totals.allPassed == 0, "how the items were won")
+  assert(totals.rolls == 6 and totals.high == 99 and totals.low == 1, "roll count and extremes")
+  assert(math.abs(totals.average - 400 / 6) < 0.001, "average roll")
+
+  -- The table: sorted by wins, blanks for someone who never rolled, and live while the run goes on.
+  hand.startTime, hand.instanceName = time(), "Hand-made"
+  ns.SummaryWindow.Show(hand)
+  _G.NeedySummaryTab2:Click()
+  local page = _G.NeedySummary.statsPage
+  local function cells(i)
+    local t = {}
+    for c, cell in ipairs(page.rows[i].cells) do t[c] = cell:GetText() end
+    return table.concat(t, ",")
+  end
+  assert(cells(1) == "2,+1.0,2,1,0,0,86,99,70", "A's line: " .. cells(1))
+  assert(cells(2) == "1,-1.0,3,0,0,0,47,80,1", "B's line: " .. cells(2))
+  assert(cells(3) == "0,-,0,0,3,0,-,-,-", "C's line: " .. cells(3))
+  for i = 4, #page.rows do assert(not page.rows[i]:IsShown(), "leftover lines are hidden") end
+  assert(page.note:GetText():find("1 unfinished roll"), "unfinished roll noted")
+  hand.drops[4].allPassed = true
+  ns.Fire("DROP_UPDATE", { key = "unrelated" })
+  assert(page.tiles.allPassed.value:GetText() == "1", "stats update during a run")
+  assert(page.note:GetText() == "", "note clears when the roll finishes")
+  hand.drops[4].allPassed = nil
+
   -- A short run: B's roll of 1 is the only thing that stands out (B also needed most, but gets one title).
   local small = ns.Titles.Compute(hand)
   assert(#small == 1 and small[1].key == "critfail" and small[1].players[1].name == "B", "small run: just Critical Fail")
@@ -280,6 +339,98 @@ run = lua.eval("""function(ns)
   for _, a in ipairs(ns.Titles.Compute(tie)) do
     assert(a.key ~= "hoarder", "tied needs give no Loot Hoarder")
   end
+  -- Luck: off-spec and greed have no chance against a main-spec need.
+  local spec = { drops = { { key = "s", winner = "M", rolls = {
+    M = { choice = "need", roll = 5 }, N = { choice = "need", roll = 4 },
+    O = { choice = "need", roll = 99, offSpec = true }, G = { choice = "greed", roll = 100 },
+  } } } }
+  local sst = ns.Titles.Stats(spec)
+  assert(ns.Titles.Luck(sst.M) == 0.5 and ns.Titles.Luck(sst.N) == -0.5, "main-spec needs split the odds")
+  assert(ns.Titles.Luck(sst.O) == nil and ns.Titles.Luck(sst.G) == nil, "no chance means no luck either way")
+
+  -- Wishlist: added from DungeonJournal's menu, marked on its rows, lights up the bar with one fanfare.
+  local journal = ForeverDungeonJournal_NS
+  local row = CreateFrame("Button")
+  row.icon = row:CreateTexture()
+  journal.UpdateFavouriteIndicator(row, 4242)
+  assert(not row.needyMark:IsShown(), "no mark before it's on the list")
+  journal.ShowItemFavouriteMenu(row, { 4242, "Shiny Hat" }, "Dungeon", "Boss")
+  local menu = journal.favouriteContextMenu
+  local entry
+  for _, f in ipairs(__frames) do
+    if f.mark and f.text and f.text:GetText() == "Add to Needy Wishlist" then entry = f end
+  end
+  assert(entry, "menu offers the wishlist")
+  entry:Click()
+  assert(ns.Wishlist.Has(4242) and row.needyMark:IsShown(), "item added and marked")
+  assert(not menu:IsShown(), "menu closes")
+  journal.ShowItemFavouriteMenu(row, { 4242, "Shiny Hat" }, "Dungeon", "Boss")
+  assert(entry.text:GetText() == "Remove from Needy Wishlist", "menu offers removal")
+  journal.ShowItemFavouriteMenu(row, { 4242, "Shiny Hat" }, "Dungeon", nil, { id = 1 })
+  assert(not entry:IsShown(), "not offered on quest rewards")
+
+  local function barFor(id)
+    for _, f in ipairs(__frames) do
+      if f.need and type(f.roll) == "table" and f.roll.id == id then return f end
+    end
+  end
+  local function roll(id, item)
+    ns.Fire("ROLL_START", { id = id, rollTime = 60000, endsAt = GetTime() + 60, isTest = true, canNeed = true,
+      canGreed = true, name = "Item", quality = 3, link = "|Hitem:" .. item .. "::::|h[Item]|h" })
+    return barFor(id)
+  end
+  local before = #__sounds
+  local plain = roll(9001, 42420)
+  assert(not plain.wished and #__sounds == before, "other items are left alone")
+  local wanted = roll(9002, 4242)
+  assert(wanted.wished and wanted.wishGlow:IsShown() and #__sounds == before + 1, "wishlist drop glows and plays")
+  assert(wanted.status:GetText():find("Wishlist!"), "and says so")
+  roll(9003, 4242)
+  assert(#__sounds == before + 1, "items dropping together share a fanfare")
+  ns.Wishlist.Toggle(4242)
+  assert(not wanted.wished and not wanted.wishGlow:IsShown() and not row.needyMark:IsShown(), "removal undoes it all")
+
+  __advance(5)
+  ns.Wishlist.Toggle(9372, "Combined Sword", { 11086, 9379 })
+  local piece = roll(9004, 9379)
+  assert(piece.wished and #__sounds == before + 2, "a piece of a combined item counts")
+  ns.RollFrame.Release(piece)
+  assert(not piece.wished, "a reused bar starts plain")
+
+  ns.Wishlist.Clear()
+  SlashCmdList.NEEDY("test wish")
+  __flush(0.5)
+  local glowing = false
+  for _, r in pairs(ns.LootSource.All()) do
+    if r.wishlisted and barFor(r.id).wished then glowing = true end
+  end
+  assert(glowing, "/needy test wish works with an empty list")
+  -- The Wishlist tab: lists what's tracked, where it drops, and takes items off.
+  ns.Wishlist.Toggle(4242, "Shiny Hat")
+  SlashCmdList.NEEDY("wishlist")
+  local listed
+  for _, f in ipairs(__frames) do
+    if f.remove and f.itemID == 4242 then listed = f end
+  end
+  assert(listed and listed:IsShown(), "the tab lists the tracked item")
+  assert(listed.where:GetText() == "Deep Cave - Big Troll", "with its boss: " .. tostring(listed.where:GetText()))
+
+  -- History tags the drops that are on the list, and only those.
+  local past = { startTime = time(), endTime = time(), drops = {
+    { key = "w", link = "|Hitem:4242::::|h[Shiny Hat]|h", rolls = {}, allPassed = true },
+    { key = "o", link = "|Hitem:777::::|h[Old Boot]|h", rolls = {}, allPassed = true },
+  } }
+  ns.DB.SaveSession(past)
+  ns.HistoryWindow.Show(past)
+  local tagged, untagged
+  for _, f in ipairs(__frames) do
+    if f.tag and f.drop == past.drops[1] then tagged = f end
+    if f.tag and f.drop == past.drops[2] then untagged = f end
+  end
+  assert(tagged.tag:IsShown() and not untagged.tag:IsShown(), "history tags wishlist drops only")
+  listed.remove:Click()
+  assert(not ns.Wishlist.Has(4242) and not listed:IsShown(), "the X takes it off the list")
+  assert(not tagged.tag:IsShown(), "and off the history tag")
   return #awards
 end""")
 try:

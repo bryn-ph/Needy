@@ -139,8 +139,8 @@ local function loadItem(itemID, callback)
 	C_Timer.After(3, function() finish(fallbackInfo(itemID)) end)
 end
 
-local function loadItems(count, callback)
-	local ids = shuffle({ unpack(ITEMS) })
+local function loadItems(count, callback, only)
+	local ids = shuffle({ unpack(only or ITEMS) })
 	local infos, pending = {}, count
 	for i = 1, count do
 		local id = ids[((i - 1) % #ids) + 1]
@@ -177,7 +177,7 @@ local function timeout(drop)
 	fire(drop)
 end
 
-local function startRoll(info)
+local function startRoll(info, wishlisted)
 	local id = nextID
 	nextID = nextID - 1
 	local canNeed = math.random() < 0.8
@@ -188,11 +188,13 @@ local function startRoll(info)
 		bop = (info.quality or 0) >= 4, canNeed = canNeed, canGreed = true,
 		reasonNeed = not canNeed and 1 or nil,
 		link = info.link,
+		wishlisted = wishlisted,
 	}
 	local drop = {
 		key = "test:" .. id, rollID = id, isTest = true,
 		link = info.link, name = info.name, texture = info.texture, quality = info.quality,
 		encounterName = "Test Boss",
+		wishlisted = wishlisted,
 		rolls = {},
 	}
 	for _, m in ipairs(party) do
@@ -219,8 +221,8 @@ local function startRoll(info)
 	C_Timer.After(ROLL_SECONDS, function() timeout(drop) end)
 end
 
--- /needy test: start (or add to) a live test run with a fake party.
-function TestMode.Start(count)
+-- /needy test: start (or add to) a live test run with a fake party. `only` limits it to those items.
+function TestMode.Start(count, only, wishlisted)
 	if not ns.Tracker.testSession then
 		party = makeParty({ "normal", "hoarder", "saint", "unlucky" })
 		ns.Tracker.testSession = ns.Tracker.NewSession({
@@ -235,9 +237,18 @@ function TestMode.Start(count)
 	end
 	loadItems(count or 3, function(infos)
 		for _, info in ipairs(infos) do
-			startRoll(info)
+			startRoll(info, wishlisted)
 		end
-	end)
+	end, only)
+end
+
+-- /needy test wish: one of your wishlist items drops (or any test item, if the list is empty).
+function TestMode.Wish()
+	local ids = {}
+	for _, item in ipairs(ns.Wishlist.List()) do
+		table.insert(ids, item.parts and item.parts[1] or item.id)
+	end
+	TestMode.Start(1, #ids > 0 and ids or nil, true)
 end
 
 -- The player clicked a button on a fake roll (via LootSource.Choose).
