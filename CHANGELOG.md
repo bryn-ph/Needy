@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.0-beta
+
+Fully restart the game after updating: this version adds a new file, which `/reload` doesn't load.
+
+- **Flash new roll bars** (off by default; Roll Frame settings): a glow breathes round each roll bar as it appears, so you don't miss one when your bars are tucked away. It takes the item's quality colour, or gold for wishlist items.
+- The number that lands on a roll bar is now always your own roll, labelled **You**, when you rolled; the winner and their roll are on the line beside it. It used to show the winner's roll when the game listed you under a different name, or sent your number a moment late.
+
 ## v0.2.0-beta
 
 Fully restart the game after updating: this version adds new files, which `/reload` doesn't load.

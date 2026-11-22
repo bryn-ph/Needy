@@ -121,6 +121,7 @@ function Titles.Stats(session)
 					stats[name] = s
 				end
 				s.class = s.class or r.class
+				s.isSelf = s.isSelf or ns.IsMe(name, r)
 				s.drops = s.drops + 1
 				local field = CHOICE_FIELD[r.choice] or "noRolls"
 				s[field] = s[field] + 1

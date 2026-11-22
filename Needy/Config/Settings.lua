@@ -113,6 +113,8 @@ local function buildPages()
 	local p = newPage("rolls", "Roll Frame", "The bars that pop up when an item is up for need, greed or pass.")
 	p:Check("Replace Blizzard's roll frames", "Hide the default loot roll popups and use Needy's bars.", "replaceBlizzard")
 	p:Check("Animations", "Bars pop in, and results play the game's own dice roll animation.", "animations")
+	p:Check("Flash new roll bars", "A glow breathes round each roll bar as it appears, so you notice it wherever your bars are. It takes the item's quality colour, or gold for wishlist items. Try it with Test rolls on the General tab.", "flashBars",
+		function(on) ns.RollFrame.FlashShown(on) end)
 	p:Check("Lock position", "Untick to get a handle you can drag the bars with. They snap to the centre of the screen, like Edit Mode.", "locked")
 	p:Segmented("New bars stack", { { value = false, text = "Downwards" }, { value = true, text = "Upwards" } },
 		function() return ns.settings.growUp end,

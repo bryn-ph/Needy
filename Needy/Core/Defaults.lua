@@ -8,6 +8,7 @@ ns.Defaults = {
 	scale = 1,
 	barWidth = 360,
 	animations = true, -- the game's need-roll dice animation on results, pop-in for new bars
+	flashBars = false, -- a glow round each roll bar as it appears
 	wishlistSound = true, -- a fanfare when a wishlist item comes up for a roll
 	showLog = true, -- small on-screen list of this run's drops
 	logRows = 8,
@@ -105,6 +106,24 @@ end
 function ns.PlayerName()
 	local name = UnitName("player")
 	return name
+end
+
+-- Is this entry you? The loot history flags your own (isSelf); otherwise go by name, with or without
+-- your realm, since the history can include it.
+function ns.IsMe(name, r)
+	if r and r.isSelf then return true end
+	local me = ns.PlayerName()
+	if not me or type(name) ~= "string" then return false end
+	if name == me then return true end
+	local realm = GetNormalizedRealmName and GetNormalizedRealmName()
+	return realm ~= nil and name == me .. "-" .. realm
+end
+
+-- Your name and entry in a drop's rolls, if you're in it.
+function ns.FindMe(rolls)
+	for name, r in pairs(rolls or {}) do
+		if ns.IsMe(name, r) then return name, r end
+	end
 end
 
 function ns.PlayerClass()

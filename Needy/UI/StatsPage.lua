@@ -166,7 +166,7 @@ local function setRow(row, player, i)
 			end
 		end
 	end
-	if player.name == ns.PlayerName() then
+	if s.isSelf then
 		row.bg:SetColorTexture(GOLD[1], GOLD[2], GOLD[3], 0.12)
 	else
 		row.bg:SetColorTexture(1, 1, 1, i % 2 == 0 and 0.04 or 0)
@@ -215,7 +215,11 @@ function StatsPage.Create(parent, width)
 			tile.value:SetText(rounded(totals[key]))
 		end
 
-		self.yourLuck:SetText(yourLuckText(stats[ns.PlayerName() or ""]))
+		local mine
+		for _, s in pairs(stats) do
+			if s.isSelf then mine = s end
+		end
+		self.yourLuck:SetText(yourLuckText(mine))
 		for _, row in ipairs(self.rows) do row:Hide() end
 		local players = sortedPlayers(stats)
 		for i, player in ipairs(players) do
