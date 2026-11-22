@@ -9,6 +9,7 @@
 ## AddonCompartmentFunc: Needy_OnAddonCompartmentClick
 ## X-License: MIT
 ## X-Website: https://github.com/bryn-ph/Needy
+## X-Curse-Project-ID: 1822578
 
 Core\Init.lua
 Core\Defaults.lua
