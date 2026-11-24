@@ -1,4 +1,4 @@
--- The roll bars that replace Blizzard's GroupLootFrame popups, drawn in the game's own style.
+-- The roll bars that replace Blizzard's GroupLootFrame popups. Their look comes from UI/Themes.lua.
 local _, ns = ...
 
 local RollFrame = {}
@@ -7,10 +7,7 @@ ns.RollFrame = RollFrame
 local W = ns.Widgets
 local GOLD = W.GOLD
 
-local BAR_HEIGHT = 56
-local BAR_GAP = 4
-local ICON_SIZE = 38
-local BUTTON_SIZE = 30
+local BAR_GAP = 4 -- bar sizes, and where things sit on them, come from the theme (UI/Themes.lua)
 local RESULT_LINGER = 1.8 -- seconds a finished bar stays up after the result shows
 local ANIM_SPEED = 0.6 -- Blizzard's need-roll animation, played a little faster (1 = their timing)
 local REVEAL_TIME = 3.4 * ANIM_SPEED -- when the number lands in that animation
@@ -166,7 +163,7 @@ local function createAnchor()
 	end)
 	anchor:SetScript("OnMouseUp", stopDrag)
 	anchor:SetScript("OnHide", stopDrag)
-	W.NativeBox(anchor, 0.85)
+	ns.Themes.Surface(anchor)
 
 	anchor.label = W.Text(anchor, "GameFontNormal")
 	anchor.label:SetPoint("LEFT", 12, 0)
@@ -207,7 +204,7 @@ end
 local function makeButton(bar, choice)
 	local info = ns.Choices[choice]
 	local b = CreateFrame("Button", nil, bar)
-	b:SetSize(BUTTON_SIZE, BUTTON_SIZE)
+	b:SetSize(30, 30)
 	b:SetNormalAtlas(info.button .. "-up")
 	b:SetHighlightAtlas(info.button .. "-highlight", "ADD")
 	b:SetPushedAtlas(info.button .. "-down")
@@ -215,7 +212,7 @@ local function makeButton(bar, choice)
 	b.choice = choice
 	b.glow = b:CreateTexture(nil, "BACKGROUND")
 	b.glow:SetPoint("CENTER")
-	b.glow:SetSize(BUTTON_SIZE + 16, BUTTON_SIZE + 16)
+	b.glow:SetSize(46, 46)
 	b.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
 	b.glow:SetBlendMode("ADD")
 	b.glow:SetVertexColor(GOLD[1], GOLD[2], GOLD[3])
@@ -337,20 +334,33 @@ end
 
 -- Bars -------------------------------------------------------------------------------------------
 
+local paint, fitText -- defined below
+
+-- Dress a bar for the theme, again if the theme or the bar width has changed since.
+local function restyle(bar)
+	local look = ns.Themes.Key() .. ":" .. ns.settings.barWidth
+	if bar.look == look then return end
+	bar.look = look
+	ns.Themes.StyleBar(bar)
+	if bar.roll then
+		bar.icon:SetItem(bar.roll.texture, bar.roll.quality)
+		bar.name:SetTextColor(ns.QualityColor(bar.roll.quality)) -- a new font brings its own colour
+		paint(bar)
+		fitText(bar, bar.need:IsShown())
+	end
+end
+
 local function rosterTooltip(bar)
 	W.DropTooltip(bar, bar.drop, bar.roll and bar.roll.link or (bar.drop and bar.drop.link), false)
 end
 
 local function createBar()
 	local bar = CreateFrame("Frame", nil, anchor, "BackdropTemplate")
-	bar:SetHeight(BAR_HEIGHT)
-	W.NativeBox(bar, 0.85)
 	bar:EnableMouse(true)
 	bar:SetScript("OnEnter", rosterTooltip)
 	bar:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-	local icon = W.ItemIcon(bar, ICON_SIZE)
-	icon:SetPoint("LEFT", 9, 0)
+	local icon = W.ItemIcon(bar, 38)
 	icon:SetScript("OnEnter", function(self)
 		local roll = bar.roll
 		if not roll then return end
@@ -372,15 +382,11 @@ local function createBar()
 	bar.icon = icon
 
 	bar.pass = makeButton(bar, "pass")
-	bar.pass:SetPoint("RIGHT", -10, 1)
 	bar.greed = makeButton(bar, "greed")
-	bar.greed:SetPoint("RIGHT", bar.pass, "LEFT", -2, 0)
 	bar.need = makeButton(bar, "need")
-	bar.need:SetPoint("RIGHT", bar.greed, "LEFT", -2, 0)
 	bar.buttons = { bar.need, bar.greed, bar.pass }
 
 	bar.name = W.Text(bar, "GameFontNormal")
-	bar.name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, -1)
 	bar.name:SetWordWrap(false)
 	if bar.name.SetMaxLines then bar.name:SetMaxLines(1) end
 
@@ -389,19 +395,13 @@ local function createBar()
 	bar.tag:SetWordWrap(false)
 
 	bar.status = W.Text(bar, "GameFontHighlightSmall")
-	bar.status:SetPoint("TOPLEFT", bar.name, "BOTTOMLEFT", 0, -4)
 	bar.status:SetWordWrap(false)
 	if bar.status.SetMaxLines then bar.status:SetMaxLines(1) end
 
-	-- Countdown, like the default roll frame's.
+	-- Countdown, like the default roll frame's (its texture and place depend on the theme).
 	bar.timer = CreateFrame("StatusBar", nil, bar)
-	bar.timer:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-	bar.timer:SetHeight(6)
-	bar.timer:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 8, 0)
-	bar.timer:SetPoint("RIGHT", bar.need, "LEFT", -8, 0)
 	bar.timer.bg = bar.timer:CreateTexture(nil, "BACKGROUND")
 	bar.timer.bg:SetAllPoints()
-	bar.timer.bg:SetColorTexture(0, 0, 0, 0.5)
 
 	-- Animations (only played when the "animations" option is on).
 	bar.intro = bar:CreateAnimationGroup()
@@ -418,7 +418,6 @@ local function createBar()
 	bar.rollAnim = RollFrame.CreateRollAnimation(bar)
 	-- "You", beside your number in the roll animation; appears as it lands.
 	bar.rollLabel = W.Text(bar, "GameFontNormalSmall")
-	bar.rollLabel:SetPoint("RIGHT", bar, "RIGHT", -74, -8)
 	bar.rollLabel:SetJustifyH("RIGHT")
 	bar.rollLabel:Hide()
 
@@ -431,10 +430,9 @@ local function createBar()
 	pop:SetSmoothing("OUT")
 
 	bar:SetScript("OnUpdate", RollFrame.UpdateBar)
+	restyle(bar)
 	return bar
 end
-
-local fitText -- defined below
 
 local function layout()
 	local width = ns.settings.barWidth
@@ -443,7 +441,7 @@ local function layout()
 		bar:ClearAllPoints()
 		bar:SetWidth(width)
 		if bar.roll then fitText(bar, bar.need:IsShown()) end
-		local offset = (i - 1) * (BAR_HEIGHT + BAR_GAP)
+		local offset = (i - 1) * (ns.Themes.Current().height + BAR_GAP)
 		if ns.settings.growUp then
 			bar:SetPoint("BOTTOM", anchor, "TOP", 0, offset + BAR_GAP)
 		else
@@ -455,16 +453,18 @@ end
 
 -- Give the name and roster lines explicit widths so long text is cut off with "..." inside the bar
 -- (left of the buttons while the roll is open, the full bar once they're gone).
-local TEXT_LEFT = 9 + ICON_SIZE + 8
-local BUTTONS_AREA = 3 * BUTTON_SIZE + 2 * 2 + 10 + 8
-local ROLL_NUMBER_AREA = 112 -- the landed number and its label, at the bar's right
-
+-- The theme says where text starts and how much room the buttons, or the landed number, need on the right.
 function fitText(bar, withButtons)
-	local avail = ns.settings.barWidth - TEXT_LEFT - (withButtons and BUTTONS_AREA or 12)
+	local t = ns.Themes.Current()
+	local right = withButtons and ns.Themes.ButtonsArea(t) or t.text.right
+	local avail = ns.settings.barWidth - t.text.left - right
 	local numberShown = bar.rollAnim and bar.rollAnim:IsShown()
 	local tagWidth = bar.tag:IsShown() and (W.StringWidth(bar.tag) + 6) or 0
 	bar.name:SetWidth(math.max(20, math.min(W.StringWidth(bar.name) + 2, avail - tagWidth)))
-	bar.statusWidth = math.max(20, numberShown and (avail - ROLL_NUMBER_AREA + 12) or avail)
+	if numberShown then
+		avail = ns.settings.barWidth - t.text.left - math.max(right, t.anim.reserve)
+	end
+	bar.statusWidth = math.max(20, avail)
 	bar.status:SetWidth(bar.statusWidth)
 end
 
@@ -507,6 +507,19 @@ local function resultText(drop)
 	return text, mine
 end
 
+-- A bar's colours, for the theme: gold for a wishlist item or once you've won it, otherwise the item's
+-- quality colour.
+function paint(bar)
+	local highlight = bar.wished or bar.wonShown
+	local r, g, b
+	if highlight then
+		r, g, b = GOLD[1], GOLD[2], GOLD[3]
+	else
+		r, g, b = ns.QualityColor(bar.roll and bar.roll.quality)
+	end
+	ns.Themes.PaintBar(bar, r, g, b, highlight, bar.wished)
+end
+
 -- Dress or undress a bar for an item on the wishlist.
 local function setWished(bar, wished)
 	if (bar.wished or false) == wished then return end
@@ -514,16 +527,10 @@ local function setWished(bar, wished)
 	if wished then
 		bar.wishGlow = bar.wishGlow or ns.WishlistGlow.Create(bar, bar.icon)
 		bar.wishGlow:Start(ns.settings.animations)
-		bar:SetBackdropColor(0.22, 0.14, 0, 0.92)
-		bar:SetBackdropBorderColor(GOLD[1], GOLD[2], GOLD[3], 1)
-		return
+	else
+		bar.wishGlow:Stop()
 	end
-	bar.wishGlow:Stop()
-	bar:SetBackdropColor(0, 0, 0, 0.85)
-	if bar.roll and not (bar.resultShown and bar.youWon) then
-		local r, g, b = ns.QualityColor(bar.roll.quality)
-		bar:SetBackdropBorderColor(r, g, b, 1)
-	end
+	paint(bar)
 end
 
 local function stopAnimations(bar)
@@ -539,7 +546,8 @@ end
 
 local function markWon(bar)
 	if bar.youWon then
-		bar:SetBackdropBorderColor(GOLD[1], GOLD[2], GOLD[3], 1)
+		bar.wonShown = true
+		paint(bar)
 	end
 end
 
@@ -582,10 +590,16 @@ local function playRollAnimation(bar, myNumber, mine)
 	return true
 end
 
+-- The roll is over: the timer stays, empty, as on the game's own popup (whose panel has a slot for it).
+local function stopTimer(bar)
+	bar.counting = false
+	bar.timer:SetValue(0)
+end
+
 local function showResult(bar)
 	local drop = bar.drop
 	for _, b in ipairs(bar.buttons) do b:Hide() end
-	bar.timer:Hide()
+	stopTimer(bar)
 	fitText(bar, false)
 	bar.resultText, bar.youWon = resultText(drop)
 	if bar.resultShown then
@@ -632,7 +646,7 @@ local function refreshBar(bar)
 		b:SetShown(open)
 		b.glow:SetShown(roll.myChoice == b.choice)
 	end
-	bar.timer:SetShown(open)
+	if not open then stopTimer(bar) end
 	fitText(bar, open)
 	rosterLine(bar)
 	if not open and not bar.fadeAt then
@@ -643,12 +657,11 @@ end
 function RollFrame.UpdateBar(bar)
 	local roll = bar.roll
 	if not roll then return end
-	if bar.timer:IsShown() then
+	if bar.counting then
 		local left = ns.LootSource.TimeLeft(roll)
 		local frac = roll.rollTime > 0 and left / roll.rollTime or 0
 		bar.timer:SetValue(left)
-		-- green with time to spare, through yellow, to red as it runs out
-		bar.timer:SetStatusBarColor(math.min(1, 2 * (1 - frac)), math.min(1, 2 * frac), 0)
+		bar.timer:SetStatusBarColor(ns.Themes.TimerColor(frac))
 	end
 	if bar.awaitMineUntil and GetTime() >= bar.awaitMineUntil then
 		bar.gaveUpOnMine = true
@@ -681,7 +694,7 @@ function RollFrame.Release(bar)
 	if bar.flash then bar.flash:Stop() end
 	bar:Hide()
 	bar.roll, bar.drop, bar.fadeAt, bar.selfRoll, bar.resultShown = nil, nil, nil, nil, nil
-	bar.awaitMineUntil, bar.gaveUpOnMine = nil, nil
+	bar.awaitMineUntil, bar.gaveUpOnMine, bar.wonShown = nil, nil, nil
 	table.insert(pool, bar)
 	layout()
 end
@@ -695,18 +708,21 @@ end
 local function onRollStart(roll)
 	local bar = table.remove(pool) or createBar()
 	bar.roll, bar.drop, bar.fadeAt, bar.selfRoll, bar.resultShown = roll, nil, nil, nil, nil
-	bar.awaitMineUntil, bar.gaveUpOnMine = nil, nil
+	bar.awaitMineUntil, bar.gaveUpOnMine, bar.wonShown = nil, nil, nil
 	stopAnimations(bar)
+	restyle(bar)
 	bar:SetAlpha(1)
 	bar.icon:SetItem(roll.texture, roll.quality)
 	bar.icon.count:SetText((roll.count or 1) > 1 and roll.count or "")
 	local r, g, b = ns.QualityColor(roll.quality)
-	bar:SetBackdropBorderColor(r, g, b, 1)
+	paint(bar)
 	bar.name:SetText(roll.name or "?")
 	bar.name:SetTextColor(r, g, b)
 	bar.tag:SetText(roll.bop and "BoP" or "")
 	bar.tag:SetShown(roll.bop == true)
 	bar.timer:SetMinMaxValues(0, roll.rollTime)
+	bar.timer:SetValue(roll.rollTime)
+	bar.counting = true
 
 	local function reason(code)
 		return code and _G["LOOT_ROLL_INELIGIBLE_REASON" .. code] or nil
@@ -794,6 +810,9 @@ function RollFrame.ApplySettings()
 	anchor:SetScale(ns.settings.scale)
 	local unlocked = not ns.settings.locked
 	anchor:EnableMouse(unlocked)
+	if anchor.needyTheme ~= ns.Themes.Key() then ns.Themes.Surface(anchor) end
+	for _, bar in ipairs(bars) do restyle(bar) end
+	for _, bar in ipairs(pool) do restyle(bar) end
 	anchor:SetBackdropColor(0, 0, 0, unlocked and 0.85 or 0)
 	anchor:SetBackdropBorderColor(GOLD[1], GOLD[2], GOLD[3], unlocked and 1 or 0)
 	anchor.label:SetShown(unlocked)

@@ -16,7 +16,7 @@ New-Item -ItemType Junction -Path "$wow\Interface\AddOns\Needy" -Target "$PWD\Ne
 | Path | |
 |---|---|
 | `Needy/Core/` | Namespace, events and the internal message bus (`Init`), settings and saved variables (`Defaults`, `DB`), the loot API adapter (`LootSource`), runs (`Tracker`), the per-character wishlist (`Wishlist`) and the awards and stats maths (`Titles`) |
-| `Needy/UI/` | The look and widgets (`Widgets`), roll bars (`RollFrame`, with `WishlistGlow` for wanted items), the optional glow round new bars (`BarFlash`), the Wishlist tab's list (`WishlistPanel`), the Roll Log tab (`RollLog`), the History window and the Run Report (`SummaryWindow`, with `StatsPage` as its second tab) |
+| `Needy/UI/` | Widgets (`Widgets`), the themes for the bars and Roll Log (`Themes`), roll bars (`RollFrame`, with `WishlistGlow` for wanted items), the optional glow round new bars (`BarFlash`), the Wishlist tab's list (`WishlistPanel`), the Roll Log tab (`RollLog`), the History window and the Run Report (`SummaryWindow`, with `StatsPage` as its second tab) |
 | `Needy/Integrations/` | Optional hooks into other addons (`DungeonJournal`) |
 | `Needy/Config/` | The settings window, minimap icon and slash commands |
 | `Needy/Test/` | Test mode: fake rolls and a fake party |
@@ -28,7 +28,7 @@ How it fits together:
 - `LootSource` turns the game's events into Needy messages: `ROLL_START`, `ROLL_CLOSED`, `DROP_UPDATE` and so on (listed in `Core/Init.lua`). Test mode raises the same messages, so the UI and `Tracker` never care whether a roll is real.
 - Live rolls come from `START_LOOT_ROLL`, `GetLootRollItemInfo` and `RollOnLoot`. Everyone's choices, rolls and the winner come from `C_LootHistory`.
 - The DungeonJournal integration post-hooks two functions on that addon's table and reads its loot tables at runtime to say where items drop (all listed at the top of the file). It never edits that addon or copies its code or data. Needy must keep working without it, and if those functions change.
-- A run starts when you enter a party or raid instance and ends when you leave. `/reload` inside resumes it.
+- A run starts when you enter a party or raid instance and ends when you leave. `/reload` inside resumes it. Leaving as a ghost (released after a wipe) doesn't end it: the run is kept "away" until you're back inside, enter another instance, or have been alive outside for 5 minutes (`Tracker` `keepAway`).
 - Blizzard opens its popups from `GameEvent.HandleStartLootRoll`, not from a frame that can be unregistered. Needy makes `GroupLootFrame1-4` invisible and click-through instead of touching `GroupLootContainer`, which sits in the managed bottom-frame stack where taint could reach protected bars.
 - WoW: Forever has need, greed and pass only. There are no transmog rolls, even though the client code supports them.
 

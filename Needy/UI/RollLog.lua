@@ -198,7 +198,7 @@ end
 local function createPanel()
 	panel = CreateFrame("Frame", "NeedyLog", tab, "BackdropTemplate")
 	panel:SetWidth(PANEL_WIDTH)
-	W.NativeBox(panel, 0.85)
+	ns.Themes.Surface(panel)
 	panel:EnableMouse(true)
 	panel:Hide()
 
@@ -246,6 +246,7 @@ function RollLog.Refresh()
 		return
 	end
 	tab:SetScale(ns.settings.scale)
+	if panel.needyTheme ~= ns.Themes.Key() then ns.Themes.Surface(panel) end
 	tab:Show()
 
 	local count = #s.drops

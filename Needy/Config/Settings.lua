@@ -7,7 +7,7 @@ ns.SettingsWindow = SettingsWindow
 
 local W = ns.Widgets
 
-local WIDTH, HEIGHT = 500, 450
+local WIDTH, HEIGHT = 500, 480
 local PAD = 18
 local PAGE_WIDTH = WIDTH - PAD * 2 - 16
 
@@ -78,17 +78,23 @@ local function newPage(key, title, blurb)
 		local get, set = setting(key)
 		return self:Add(W.Slider(self, label, minV, maxV, step, fmt, get, set), 26, 8)
 	end
-	function page:Segmented(label, items, get, set)
+	function page:Segmented(label, items, get, set, tip, width)
 		local row = CreateFrame("Frame", nil, self)
 		row:SetSize(PAGE_WIDTH, 24)
 		local l = W.Text(row, "GameFontHighlight")
 		l:SetPoint("LEFT")
 		l:SetText(label)
-		local seg = W.Segmented(row, items, 230, set)
+		if tip then
+			row:EnableMouse(true)
+			row:SetScript("OnEnter", function(r) W.Tip(r, label, tip) end)
+			row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+		end
+		local seg = W.Segmented(row, items, width or 230, set)
 		seg:SetPoint("LEFT", 154, 0)
 		function row:Refresh() seg:SetValue(get()) end
 		return self:Add(row, 24, 10)
 	end
+	-- A row of buttons; each def is { text, onClick, width, tooltip }.
 	function page:Buttons(list)
 		local row = CreateFrame("Frame", nil, self)
 		row:SetSize(PAGE_WIDTH, 22)
@@ -97,6 +103,10 @@ local function newPage(key, title, blurb)
 			local b = W.Button(row, def[1], def[3] or 130, 22)
 			b:SetPoint("LEFT", x, 0)
 			b:SetScript("OnClick", def[2])
+			if def[4] then
+				b:SetScript("OnEnter", function(self) W.Tip(self, def[1], def[4]) end)
+				b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+			end
 			x = x + (def[3] or 130) + 4
 		end
 		return self:Add(row, 22, 8)
@@ -112,18 +122,31 @@ local function buildPages()
 	-- Roll frame ---------------------------------------------------------------
 	local p = newPage("rolls", "Roll Frame", "The bars that pop up when an item is up for need, greed or pass.")
 	p:Check("Replace Blizzard's roll frames", "Hide the default loot roll popups and use Needy's bars.", "replaceBlizzard")
-	p:Check("Animations", "Bars pop in, and results play the game's own dice roll animation.", "animations")
-	p:Check("Flash new roll bars", "A glow breathes round each roll bar as it appears, so you notice it wherever your bars are. It takes the item's quality colour, or gold for wishlist items. Try it with Test rolls on the General tab.", "flashBars",
+
+	p:Header("Look")
+	local themes = {}
+	for _, t in ipairs(ns.Themes.LIST) do table.insert(themes, { value = t.key, text = t.name }) end
+	p:Segmented("Theme", themes,
+		function() return ns.Themes.Key() end,
+		function(v) ns.settings.theme = v; ns.RollFrame.ApplySettings() end,
+		"How the roll bars and the Roll Log look. Original: Needy's first look. Blizzard: the game's own roll popup. Modern: a flat dark card, "
+			.. "the item's colour washing in from the side. Minimal: slim and see-through, with no box. Windows keep "
+			.. "the game's look.\n\n"
+			.. "Click Test rolls (top right) to see it.", 280)
+	p:Slider("Scale", "scale", ns.Limits.scale[1], ns.Limits.scale[2], 0.05, function(v) return ("%d%%"):format(v * 100 + 0.5) end)
+	p:Slider("Bar width", "barWidth", ns.Limits.barWidth[1], ns.Limits.barWidth[2], 10, function(v) return tostring(v) end)
+	p:Check("Animations", "Bars pop in, and your roll plays the game's own dice animation.", "animations")
+	p:Check("Flash new roll bars", "A glow breathes round each roll bar as it appears, so you notice it wherever your bars are. It takes the item's quality colour, or gold for wishlist items.", "flashBars",
 		function(on) ns.RollFrame.FlashShown(on) end)
-	p:Check("Lock position", "Untick to get a handle you can drag the bars with. They snap to the centre of the screen, like Edit Mode.", "locked")
+
+	p:Header("Position")
 	p:Segmented("New bars stack", { { value = false, text = "Downwards" }, { value = true, text = "Upwards" } },
 		function() return ns.settings.growUp end,
 		function(v) ns.settings.growUp = v; ns.RollFrame.ApplySettings() end)
-	p:Slider("Scale", "scale", ns.Limits.scale[1], ns.Limits.scale[2], 0.05, function(v) return ("%d%%"):format(v * 100 + 0.5) end)
-	p:Slider("Bar width", "barWidth", ns.Limits.barWidth[1], ns.Limits.barWidth[2], 10, function(v) return tostring(v) end)
-	p:Buttons({
-		{ "Reset position", function() ns.RollFrame.ResetPosition() end, 120 },
-	})
+	local lock = p:Check("Lock position", "Untick to get a handle you can drag the bars with. They snap to the centre of the screen, like Edit Mode.", "locked")
+	local reset = W.Button(p, "Reset position", 120, 22)
+	reset:SetPoint("LEFT", lock.label, "RIGHT", 24, -1)
+	reset:SetScript("OnClick", function() ns.RollFrame.ResetPosition() end)
 
 	-- Roll log -----------------------------------------------------------------
 	p = newPage("log", "Roll Log", "A button on screen during a run. Click it to open a list of everything that's dropped, who won it and with what roll.")
@@ -131,7 +154,7 @@ local function buildPages()
 	p:Slider("Rows shown", "logRows", ns.Limits.logRows[1], ns.Limits.logRows[2], 1, function(v) return tostring(v) end)
 	p:Buttons({
 		{ "Reset position", function() ns.RollLog.ResetPosition() end, 120 },
-		{ "Open history", function() ns.HistoryWindow.Show() end, 120 },
+		{ "Open history", function() ns.HistoryWindow.Show() end, 120, "Every run Needy has kept, drop by drop." },
 	})
 
 	-- Wishlist -----------------------------------------------------------------
@@ -144,25 +167,26 @@ local function buildPages()
 	p = newPage("awards", "End of Run", "When you leave the instance, Needy hands out titles: Loot Hoarder, Unlucky, The Saint and friends.")
 	p:Check("Show the awards window", "Opens the Run Report on its awards when the run ends. The run's stats are on its second tab.", "showSummary")
 	p:Buttons({
-		{ "Preview awards", function() ns.TestMode.Run() end, 130 },
+		{ "Preview", function() ns.TestMode.Run() end, 100, "Makes up a run with a few players and opens its Run Report." },
 	})
 
 	-- General ------------------------------------------------------------------
 	p = newPage("general", "General")
 	p:Check("Minimap icon", "Left-click opens settings, right-click opens the roll history.", "minimapShow",
 		function() ns.MinimapButton.Update() end)
-	p:Check("Keep test runs in history", "Save /needy test runs alongside real ones.", "keepTestSessions")
+
+	p:Header("History")
 	p:Slider("Runs kept", "historyLimit", ns.Limits.historyLimit[1], ns.Limits.historyLimit[2], 1, function(v) return tostring(v) end)
+	p:Check("Keep test runs", "Save test runs alongside real ones.", "keepTestSessions")
+
 	p:Header("Testing")
 	p:Buttons({
-		{ "Test rolls", function() ns.TestMode.Start(3) end, 100 },
-		{ "More rolls", function() ns.TestMode.Start(2) end, 100 },
-		{ "End test run", function() ns.TestMode.End() end, 100 },
-		{ "Simulate run", function() ns.TestMode.Run() end, 110 },
+		{ "Test rolls", function() ns.TestMode.Start(3) end, 106, "Three practice roll bars, with made-up players rolling too." },
+		{ "Wishlist drop", function() ns.TestMode.Wish() end, 106, "A practice roll for an item on your wishlist." },
+		{ "End test run", function() ns.TestMode.End() end, 106, "Ends the practice run and opens its Run Report." },
+		{ "Simulate run", function() ns.TestMode.Run() end, 106, "Makes up a whole run at once and opens its Run Report." },
 	})
-	p:Buttons({
-		{ "Test wishlist drop", function() ns.TestMode.Wish() end, 150 },
-	})
+
 	p:Header("Data")
 	local armed = false
 	p:Buttons({
@@ -205,9 +229,18 @@ local function create()
 	win = W.Window("NeedySettings", "Needy - Settings", WIDTH, HEIGHT)
 	win:SetPoint("CENTER")
 
+	-- Practice bars from any tab, to see a change take effect.
+	local test = W.Button(win, "Test rolls", 96, 22)
+	test:SetPoint("TOPRIGHT", -10, -30)
+	test:SetScript("OnClick", function() ns.TestMode.Start(3) end)
+	test:SetScript("OnEnter", function(self)
+		W.Tip(self, "Test rolls", "Puts up practice roll bars, to see your settings at work.")
+	end)
+	test:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
 	local version = W.Text(win, "GameFontDisableSmall")
-	version:SetPoint("TOPRIGHT", -12, -34)
-	version:SetText("Needy " .. W.Version() .. "   |cff8c8c8c/needy help for commands|r")
+	version:SetPoint("RIGHT", test, "LEFT", -10, 0)
+	version:SetText("Needy " .. W.Version() .. "   |cff8c8c8c/needy help|r")
 	version:SetJustifyH("RIGHT")
 
 	win.inset = W.Inset(win)

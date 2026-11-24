@@ -70,6 +70,17 @@ function Widgets.Header(parent, text)
 	return fs
 end
 
+-- The loot toast's icon border for a quality (as the game's roll popup picks it).
+local TOAST_BORDERS = { [0] = "gray", "white", "green", "blue", "purple", "orange", "artifact", "heirloom", "heirloom" }
+function Widgets.ToastBorderAtlas(quality)
+	local cm = ColorManager
+	if quality and cm and cm.GetAtlasDataForLootBorderItemQuality then
+		local ok, atlas = pcall(cm.GetAtlasDataForLootBorderItemQuality, quality)
+		if ok and type(atlas) == "string" then return atlas end
+	end
+	return "loottoast-itemborder-" .. (TOAST_BORDERS[quality or 2] or "green")
+end
+
 -- An item icon with the game's quality-coloured icon border.
 function Widgets.ItemIcon(parent, size)
 	local f = CreateFrame("Button", nil, parent)
@@ -82,10 +93,45 @@ function Widgets.ItemIcon(parent, size)
 	f.border:SetTexture("Interface\\Common\\WhiteIconFrame")
 	f.count = f:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
 	f.count:SetPoint("BOTTOMRIGHT", -2, 2)
+	f.style = "native"
+	-- Colours the border for the item's quality, in whichever style it has.
 	function f:SetItem(texture, quality)
 		self.icon:SetTexture(texture or ns.FALLBACK_ICON)
+		if quality ~= nil and ns.IsSecret(quality) then quality = nil end
+		self.quality = quality
 		local r, g, b = ns.QualityColor(quality)
-		self.border:SetVertexColor(r, g, b)
+		if self.style == "toast" then
+			self.border:SetAtlas(Widgets.ToastBorderAtlas(quality))
+			self.border:SetVertexColor(1, 1, 1)
+		else
+			self.border:SetVertexColor(r, g, b)
+		end
+		if self.edge then self.edge:SetBackdropBorderColor(r, g, b, 1) end
+	end
+	-- "native": the game's bevelled icon frame, tinted. "toast": the loot toast's quality border, as on the
+	-- game's roll popup. "flat": a 1px quality-coloured edge. "none": just the icon.
+	function f:SetBorderStyle(style)
+		if self.style == style then return end
+		self.style = style
+		self.border:ClearAllPoints()
+		if style == "toast" then
+			-- 42 round a 34 icon on the popup, a touch low.
+			local s = self:GetWidth() * 42 / 34
+			self.border:SetSize(s, s)
+			self.border:SetPoint("CENTER", 0, -2 * self:GetWidth() / 34)
+		else
+			self.border:SetTexture("Interface\\Common\\WhiteIconFrame")
+			self.border:SetAllPoints()
+		end
+		if style == "flat" and not self.edge then
+			self.edge = CreateFrame("Frame", nil, self, "BackdropTemplate")
+			self.edge:SetPoint("TOPLEFT", -1, 1)
+			self.edge:SetPoint("BOTTOMRIGHT", 1, -1)
+			self.edge:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+		end
+		self.border:SetShown(style == "native" or style == "toast")
+		if self.edge then self.edge:SetShown(style == "flat") end
+		self:SetItem(self.icon:GetTexture(), self.quality)
 	end
 	-- The wishlist diamond on the icon's corner.
 	function f:SetWished(wished)
@@ -141,6 +187,14 @@ function Widgets.PageButton(parent, dir, onClick)
 	return b
 end
 
+-- A titled tooltip with wrapped text.
+function Widgets.Tip(owner, title, text)
+	GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+	GameTooltip:SetText(title, 1, 1, 1)
+	GameTooltip:AddLine(text, nil, nil, nil, true)
+	GameTooltip:Show()
+end
+
 function Widgets.Check(parent, text, tooltipText, get, set)
 	local check = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
 	check:SetSize(26, 26)
@@ -149,11 +203,7 @@ function Widgets.Check(parent, text, tooltipText, get, set)
 	check.label:SetText(text)
 	check:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
 	check:SetScript("OnEnter", function(self)
-		if not tooltipText then return end
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetText(text, 1, 1, 1)
-		GameTooltip:AddLine(tooltipText, nil, nil, nil, true)
-		GameTooltip:Show()
+		if tooltipText then Widgets.Tip(self, text, tooltipText) end
 	end)
 	check:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	function check:Refresh() self:SetChecked(get() and true or false) end

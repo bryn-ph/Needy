@@ -1,10 +1,15 @@
 -- One session per dungeon/raid run: starts on entering the instance, ends on leaving it.
+-- Except after a wipe: releasing puts you at a graveyard outside as a ghost, so leaving dead doesn't end the
+-- run. It's kept "away" until you run back in (it carries on), go into a different instance (it ends and the
+-- new one starts), or have been back on your feet outside for AWAY_GRACE without returning (it ends then).
 local _, ns = ...
 
 local Tracker = {}
 ns.Tracker = Tracker
 
 local RESUME_WINDOW = 30 * 60 -- seconds: a /reload or quick relog inside this keeps the same session
+local AWAY_GRACE = 5 * 60 -- seconds alive outside, after leaving as a ghost, before the run is over
+local ALIVE_SETTLE = 2 -- seconds after coming back to life, so a ghost entering the instance is inside by then
 
 Tracker.session = nil -- the real run in progress
 Tracker.testSession = nil -- the /needy test run in progress
@@ -109,20 +114,70 @@ function Tracker.End(opts)
 	return true
 end
 
-local function check()
+local function isGhost()
+	if not UnitIsDeadOrGhost then return false end
+	local ok, dead = pcall(UnitIsDeadOrGhost, "player")
+	return ok and not ns.IsSecret(dead) and dead == true
+end
+
+local check
+
+-- Alive outside after leaving as a ghost: the run ends if you're not back inside within AWAY_GRACE.
+local function startGrace(s)
+	if s.graceUntil then return end
+	s.graceUntil = time() + AWAY_GRACE
+	ns.Debug("back on your feet outside; the run ends in", AWAY_GRACE, "s unless you go back in")
+	C_Timer.After(AWAY_GRACE + 1, check)
+end
+
+-- Out of the instance, the run carries on if you left as a ghost (or already had and haven't been back).
+local function keepAway(s)
+	if not (s.away or isGhost()) then return false end
+	if not s.away then
+		s.away = true
+		ns.Debug("left as a ghost; keeping the run", s.instanceName)
+	end
+	s.lastSeen = time()
+	if isGhost() then
+		s.graceUntil = nil -- died again on the way back: wait for this life
+		return true
+	end
+	if s.graceUntil and time() >= s.graceUntil then return false end
+	startGrace(s)
+	return true
+end
+
+function check()
 	local inst = currentInstance()
 	local s = Tracker.session
 	if inst then
-		if s and s.instanceID == inst.instanceID then return end
+		if s and s.instanceID == inst.instanceID then
+			if s.away then ns.Debug("back inside", s.instanceName) end
+			s.away, s.graceUntil = nil, nil
+			return
+		end
 		if s then Tracker.End() end
 		start(inst)
 	elseif s then
-		Tracker.End()
+		if not keepAway(s) then Tracker.End() end
 	elseif ns.DB.Active() then
+		local active = ns.DB.Active()
+		if active.away and not active.endTime and time() - (active.lastSeen or active.startTime) < RESUME_WINDOW then
+			-- A /reload while out between wipe and run back: still away.
+			Tracker.session = active
+			if active.graceUntil then
+				C_Timer.After(math.max(1, active.graceUntil - time() + 1), check) -- the reload lost its timer
+			end
+			if keepAway(active) then
+				ns.Fire("SESSION_START", active)
+				return
+			end
+			Tracker.End({ silent = true })
+			return
+		end
 		-- A run left unfinished last time (logged out inside, then logged in elsewhere): file it quietly.
-		local stale = ns.DB.Active()
 		ns.DB.SetActive(nil)
-		Tracker.Finish(stale, { silent = true })
+		Tracker.Finish(active, { silent = true })
 	end
 end
 
@@ -135,6 +190,10 @@ end
 function Tracker.Init()
 	ns.On("PLAYER_ENTERING_WORLD", check)
 	ns.On("ZONE_CHANGED_NEW_AREA", check)
+	-- Back on your feet: a ghost running back in is inside by the time this looks.
+	local function settle() C_Timer.After(ALIVE_SETTLE, check) end
+	ns.On("PLAYER_UNGHOST", settle)
+	ns.On("PLAYER_ALIVE", settle)
 	ns.On("PLAYER_LOGOUT", function()
 		if Tracker.session then Tracker.session.lastSeen = time() end
 	end)

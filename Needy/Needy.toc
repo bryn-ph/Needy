@@ -20,6 +20,7 @@ Core\LootSource.lua
 Core\Tracker.lua
 Core\Wishlist.lua
 UI\Widgets.lua
+UI\Themes.lua
 UI\WishlistGlow.lua
 UI\WishlistPanel.lua
 UI\BarFlash.lua
