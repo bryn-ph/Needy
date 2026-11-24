@@ -92,6 +92,14 @@ add("minimap", "show or hide the minimap icon", function()
 	ns.Print("Minimap icon " .. (ns.settings.minimapShow and "shown." or "hidden. /needy minimap brings it back."))
 end)
 
+add("share", "[send] what wishlist sharing has sent and heard; send sends your list now", function(arg)
+	if arg == "send" then
+		ns.Sharing.SendNow()
+	else
+		ns.Sharing.Status()
+	end
+end)
+
 add("debug", "toggle debug output", function()
 	ns.debug = not ns.debug
 	ns.Print("debug " .. (ns.debug and "on" or "off"))

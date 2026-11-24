@@ -39,6 +39,8 @@ local lastSent = {} -- channel -> { rev, at }
 local replyPending = {}
 local changePending = false
 local groupSize = 0
+-- What's happened this session, for /needy share.
+local diag = { registered = "not tried", sent = 0, failed = 0, heard = 0, echoes = 0 }
 
 -- Names ------------------------------------------------------------------------------------------
 
@@ -46,12 +48,33 @@ local function realm()
 	return GetNormalizedRealmName and GetNormalizedRealmName() or nil
 end
 
--- "Name" or "Name-Realm" -> "Name-Realm", so the same person always has the same key.
-local function fullName(name)
-	if type(name) ~= "string" or ns.IsSecret(name) or name == "" then return nil end
-	if name:find("-", 1, true) then return name end
+-- A last part of a name that names a server, not the person: your own realm (retail), or the
+-- "camwow...realm..." label Forever can put after an addon message's sender.
+local function serverLabel(part)
+	if part:lower():match("^camwow%a*%d+realm%d+%a*$") then return true end
 	local r = realm()
-	return r and (name .. "-" .. r) or name
+	return type(r) == "string" and r ~= "" and not ns.IsSecret(r) and part == r
+end
+
+-- One key per person, however their name is spelt, which is also how it's shown. On Forever a character
+-- is "First Surname": UnitName gives the surname where retail gives the realm, the realm's name is "",
+-- and a sender can arrive as "First-Surname", "First Surname" or either with a server label after.
+-- Retail's "Name-YourRealm" becomes "Name".
+local function nameKey(name)
+	if type(name) ~= "string" or ns.IsSecret(name) or name == "" then return nil end
+	local parts = {}
+	for part in name:gmatch("[^%s%-]+") do parts[#parts + 1] = part end
+	if #parts > 1 and serverLabel(parts[#parts]) then parts[#parts] = nil end
+	if #parts == 0 then return nil end
+	return table.concat(parts, " ", 1, math.min(#parts, 2))
+end
+
+local function unitKey(unit)
+	if not UnitName then return nil end
+	local name, second = UnitName(unit)
+	if ns.IsSecret(name) or ns.IsSecret(second) or type(name) ~= "string" then return nil end
+	if type(second) == "string" and second ~= "" then name = name .. "-" .. second end
+	return nameKey(name)
 end
 
 local function myGuild()
@@ -76,7 +99,7 @@ local function groupMembers()
 	for i = 1, count do
 		local unit = (raid and "raid" or "party") .. i
 		if UnitExists and UnitExists(unit) and not (UnitIsUnit and UnitIsUnit(unit, "player")) then
-			local name = fullName(GetUnitName and GetUnitName(unit, true))
+			local name = unitKey(unit)
 			if name then members[name] = true end
 		end
 	end
@@ -85,10 +108,14 @@ end
 
 -- Sending -------------------------------------------------------------------------------------------
 
+-- Why the game won't let addon messages out right now, or nil. Only the chat lockdown (encounters and
+-- the like) counts. Not C_ChatInfo.AreOutgoingAddonChatMessagesRestricted: that's a realm-wide flag,
+-- true everywhere but tournament realms, for Blizzard's cooldown broadcaster; ordinary addon messages
+-- still go out (and a real block comes back as result 11, which is retried).
 local function locked()
 	local chat = C_ChatInfo
-	return (chat.InChatMessagingLockdown and chat.InChatMessagingLockdown())
-		or (chat.AreOutgoingAddonChatMessagesRestricted and chat.AreOutgoingAddonChatMessagesRestricted())
+	if chat.InChatMessagingLockdown and chat.InChatMessagingLockdown() then return "chat lockdown" end
+	return nil
 end
 
 local pump
@@ -101,12 +128,28 @@ function pump()
 	pumping = false
 	local msg = queue[1]
 	if not msg then return end
-	if locked() then return pumpLater(RETRY) end
+	local why = locked()
+	if why then
+		diag.waiting = why
+		ns.Debug("share: can't send yet,", why)
+		return pumpLater(RETRY)
+	end
 	local ok, result = pcall(C_ChatInfo.SendAddonMessage, PREFIX, msg.text, msg.channel)
-	if ok and RETRY_RESULTS[result] then return pumpLater(RETRY) end
+	diag.lastResult = ok and tostring(result) or ("error: " .. tostring(result))
+	if ok and RETRY_RESULTS[result] then
+		diag.waiting = "throttled (" .. tostring(result) .. ")"
+		ns.Debug("share: throttled, trying again soon", msg.channel, result)
+		return pumpLater(RETRY)
+	end
+	diag.waiting = nil
 	table.remove(queue, 1)
-	if not ok or (result ~= nil and result ~= SUCCESS) then
-		ns.Debug("addon message not sent", msg.channel, ok and result or "error")
+	-- Retail returns a result code (0 is sent); older clients return true or nothing.
+	if ok and (result == nil or result == SUCCESS or result == true) then
+		diag.sent = diag.sent + 1
+		ns.Debug("share: sent to", msg.channel, msg.text)
+	else
+		diag.failed = diag.failed + 1
+		ns.Debug("share: NOT sent to", msg.channel, msg.text, "result", diag.lastResult)
 	end
 	if queue[1] then pumpLater(SEND_GAP) end
 end
@@ -132,7 +175,10 @@ local function sendList(channel, force)
 	if not channel then return end
 	local rev = ns.Wishlist.Rev()
 	local last = lastSent[channel]
-	if not force and last and last.rev == rev and GetTime() - last.at < LIST_COOLDOWN then return end
+	if not force and last and last.rev == rev and GetTime() - last.at < LIST_COOLDOWN then
+		ns.Debug("share: list already sent to", channel, "just now")
+		return
+	end
 	lastSent[channel] = { rev = rev, at = GetTime() }
 	-- A newer copy of the list replaces one still waiting to go to the same channel.
 	for i = #queue, 1, -1 do
@@ -169,12 +215,18 @@ local function store(sender, msg, channel)
 	person = { rev = msg.rev, class = msg.class ~= "" and msg.class or (person and person.class), items = items,
 		seen = time(), guild = channel == "GUILD" and myGuild() or (person and person.guild) }
 	people[sender] = person
+	local n = 0
+	for _ in pairs(items) do n = n + 1 end
+	ns.Debug("share: got", sender .. "'s list,", n, "items")
 	ns.Fire("SHARED_WISHLISTS_CHANGED")
 end
 
 local function onList(sender, channel, rev, class, part, parts, ids)
 	rev, part, parts = tonumber(rev), tonumber(part), tonumber(parts)
-	if not (rev and part and parts) or parts < 1 or parts > MAX_PARTS or part < 1 or part > parts then return end
+	if not (rev and part and parts) or parts < 1 or parts > MAX_PARTS or part < 1 or part > parts then
+		ns.Debug("share: ignored a malformed list from", sender)
+		return
+	end
 	local known = people[sender]
 	if known and known.rev == rev then
 		known.seen = time()
@@ -206,16 +258,32 @@ local function onHello(channel)
 end
 
 function Sharing.Receive(prefix, text, channel, sender)
-	if prefix ~= PREFIX or not CHANNELS[channel] then return end
-	if ns.IsSecret(text) or ns.IsSecret(sender) or type(text) ~= "string" then return end
-	sender = fullName(sender)
-	if not sender or ns.IsMe(sender) then return end
+	if prefix ~= PREFIX then return end
+	if ns.IsSecret(text) or ns.IsSecret(sender) or ns.IsSecret(channel) or type(text) ~= "string" then
+		ns.Debug("share: ignored a hidden (secret) message")
+		return
+	end
+	local from = nameKey(sender)
+	if from and from == unitKey("player") then
+		diag.echoes = diag.echoes + 1 -- the guild and group send your own messages back to you
+		return
+	end
+	diag.heard = diag.heard + 1
+	diag.lastHeard = ("%s on %s: %s"):format(tostring(sender), tostring(channel), text:sub(1, 48))
+	ns.Debug("share: heard", diag.lastHeard)
+	if not CHANNELS[channel] then return ns.Debug("share: ignored, not guild or group:", channel) end
+	if not from then return ns.Debug("share: ignored, no sender name") end
+	sender = from
 	if text == "H:" .. PROTOCOL then
 		onHello(channel)
 		return
 	end
 	local rev, class, part, parts, ids = text:match("^L:" .. PROTOCOL .. ":(%d+):(%u*):(%d+):(%d+):([%d,]*)$")
-	if rev then onList(sender, channel, rev, class, part, parts, ids) end
+	if rev then
+		onList(sender, channel, rev, class, part, parts, ids)
+	else
+		ns.Debug("share: ignored a message it didn't understand from", sender)
+	end
 end
 
 -- Reading ----------------------------------------------------------------------------------------
@@ -249,9 +317,11 @@ local function clean(saved)
 	local out, count = {}, 0
 	local oldest = time() - KEEP_DAYS * 24 * 3600
 	if type(saved) ~= "table" then return out end
-	for name, p in pairs(saved) do
+	local me = unitKey("player")
+	for saved_name, p in pairs(saved) do
 		if count >= MAX_PEOPLE then break end
-		if type(name) == "string" and type(p) == "table" and type(p.rev) == "number" and type(p.items) == "table"
+		local name = nameKey(saved_name) -- older copies keyed people differently
+		if name and name ~= me and type(p) == "table" and type(p.rev) == "number" and type(p.items) == "table"
 			and type(p.seen) == "number" and p.seen >= oldest then
 			local items = {}
 			for id, v in pairs(p.items) do
@@ -290,6 +360,47 @@ local function onChange()
 	end)
 end
 
+-- /needy share: what sharing is doing, to find out why lists aren't arriving.
+function Sharing.Status()
+	local row = "  |cffffd100%s|r %s"
+	ns.Print("wishlist sharing " .. (ns.settings.shareWishlist and "on" or "off (others get an empty list)"))
+	print(row:format("Prefix registered:", diag.registered .. "  (0 or true is fine)"))
+	print(row:format("Guild:", myGuild() or "none"))
+	print(row:format("Group:", groupChannel() or "none"))
+	print(row:format("Can send:", locked() or "yes"))
+	print(row:format("Sent:", ("%d, failed %d, waiting %d%s; last result %s"):format(diag.sent, diag.failed, #queue,
+		diag.waiting and (" (" .. diag.waiting .. ")") or "", diag.lastResult or "none")))
+	print(row:format("Your own messages echoed back:", tostring(diag.echoes) .. "  (more than 0 means sending works)"))
+	print(row:format("Heard from others:", tostring(diag.heard) .. (diag.lastHeard and ("; last " .. diag.lastHeard) or "")))
+	print(row:format("Your list:", ("%d items, revision %d"):format(#sharedIDs(), ns.Wishlist.Rev())))
+	local names = {}
+	for name in pairs(people) do table.insert(names, name) end
+	table.sort(names)
+	print(row:format("Others' lists:", tostring(#names)))
+	for i = 1, math.min(#names, 10) do
+		local p, n = people[names[i]], 0
+		for _ in pairs(p.items) do n = n + 1 end
+		print(("    %s: %d items%s"):format(names[i], n, p.guild and (", guild " .. p.guild) or ""))
+	end
+end
+
+-- /needy share send: say hello and send your list to your guild and group now.
+function Sharing.SendNow()
+	local guild, channel = myGuild(), groupChannel()
+	if not guild and not channel then
+		ns.Print("You're not in a guild or group, so there's nobody to share with.")
+		return
+	end
+	if guild then
+		hello("GUILD")
+		sendList("GUILD", true)
+	end
+	hello(channel)
+	sendList(channel, true)
+	ns.Print(("Sent your wishlist to %s. Anyone with Needy there answers within about 10 seconds; check with |cffffd100/needy share|r.")
+		:format(guild and channel and ("your guild and " .. channel:lower()) or guild and "your guild" or channel:lower()))
+end
+
 function Sharing.Forget()
 	for name in pairs(people) do people[name] = nil end
 	ns.Fire("SHARED_WISHLISTS_CHANGED")
@@ -303,8 +414,13 @@ end
 function Sharing.Init()
 	people = clean(ns.db.shared)
 	ns.db.shared = people
-	if not (C_ChatInfo and C_ChatInfo.SendAddonMessage and C_ChatInfo.RegisterAddonMessagePrefix) then return end
-	C_ChatInfo.RegisterAddonMessagePrefix(PREFIX)
+	if not (C_ChatInfo and C_ChatInfo.SendAddonMessage and C_ChatInfo.RegisterAddonMessagePrefix) then
+		diag.registered = "no addon message API"
+		return
+	end
+	local ok, result = pcall(C_ChatInfo.RegisterAddonMessagePrefix, PREFIX)
+	diag.registered = ok and tostring(result) or "error"
+	ns.Debug("share: prefix registered", diag.registered)
 	ns.On("CHAT_MSG_ADDON", function(_, ...) Sharing.Receive(...) end)
 	ns.On("GROUP_ROSTER_UPDATE", onRoster)
 	ns.Listen("WISHLIST_CHANGED", onChange)

@@ -149,6 +149,8 @@ __lockdown = false
 C_ChatInfo = {
   RegisterAddonMessagePrefix = function() return 0 end,
   InChatMessagingLockdown = function() return __lockdown end,
+  -- True on every normal realm (it's for Blizzard's cooldown broadcaster); addon messages still go out.
+  AreOutgoingAddonChatMessagesRestricted = function() return true end,
   SendAddonMessage = function(prefix, text, channel) __sent[#__sent + 1] = { prefix = prefix, text = text, channel = channel }; return 0 end,
 }
 function IsInGuild() return true end
@@ -695,7 +697,7 @@ run = lua.eval("""function(ns)
   assert(#S.WhoWants(12).guild == 0, "half a list isn't used")
   S.Receive("Needy", "L:1:100:WARRIOR:2:2:13", "GUILD", "Grim-Realm")
   local who = S.WhoWants(13)
-  assert(#who.guild == 1 and who.guild[1].name == "Grim-Realm" and who.guild[1].class == "WARRIOR", "a whole list is")
+  assert(#who.guild == 1 and who.guild[1].name == "Grim" and who.guild[1].class == "WARRIOR", "a whole list is")
   S.Receive("Needy", "L:1:99:WARRIOR:1:1:55", "GUILD", "Grim-Realm")
   assert(#S.WhoWants(55).guild == 0 and #S.WhoWants(13).guild == 1, "an older list is ignored")
   S.Receive("Needy", "L:1:101:WARRIOR:1:1:55", "GUILD", "Grim")
@@ -707,7 +709,7 @@ run = lua.eval("""function(ns)
     S.Receive("Needy", junk, "GUILD", "Junk-Realm")
   end
   assert(#S.WhoWants(55).guild == 1, "ignores you, whispers, other prefixes and malformed lists")
-  assert(ns.db.shared["Grim-Realm"] and not ns.db.shared["Junk-Realm"], "kept between sessions")
+  assert(ns.db.shared["Grim"] and not ns.db.shared["Junk"], "kept between sessions")
 
   for k in pairs(__sent) do __sent[k] = nil end
   __advance(120)
@@ -736,7 +738,8 @@ run = lua.eval("""function(ns)
   IsInGroup = function() return true end
   GetNumGroupMembers = function() return 2 end
   UnitExists = function(unit) return unit == "party1" end
-  GetUnitName = function(unit) return unit == "party1" and "Pip" or nil end
+  local realUnitName = UnitName
+  UnitName = function(unit) if unit == "party1" then return "Pip" end return realUnitName(unit) end
   local ef = __frames[1]
   ef.__scripts.OnEvent(ef, "GROUP_ROSTER_UPDATE")
   __flush(10)
@@ -744,11 +747,36 @@ run = lua.eval("""function(ns)
   assert(#party == 2 and party[1] == "H:1" and party[2]:match("^L:1:"), "joining a group says hello and shares")
   S.Receive("Needy", "L:1:7:PRIEST:1:1:55", "PARTY", "Pip-Realm")
   local w = S.WhoWants(55)
-  assert(#w.group == 1 and w.group[1].name == "Pip-Realm" and #w.guild == 1, "group members listed apart from guildmates")
+  assert(#w.group == 1 and w.group[1].name == "Pip" and #w.guild == 1, "group members listed apart from guildmates")
   ef.__scripts.OnEvent(ef, "GROUP_ROSTER_UPDATE")
   __flush(10)
   assert(#sent("PARTY") == 2, "a roster update without anyone new sends nothing")
-  IsInGroup, GetNumGroupMembers, UnitExists, GetUnitName = nil, nil, nil, nil
+
+  -- Forever names: "First Surname", with the surname where retail has the realm, a realm named "", and
+  -- senders spelt "First-Surname", "First Surname", or with a server label after.
+  local realRealm = GetNormalizedRealmName
+  GetNormalizedRealmName = function() return "" end
+  UnitName = function(unit)
+    if unit == "player" then return "Tester", "Gladestorm" end
+    if unit == "party1" then return "Pip", "Brightwater" end
+  end
+  local before = 0
+  for _ in pairs(ns.db.shared) do before = before + 1 end
+  S.Receive("Needy", "L:1:200:MAGE:1:1:66", "PARTY", "Tester-Gladestorm")
+  S.Receive("Needy", "L:1:201:MAGE:1:1:66", "GUILD", "Tester Gladestorm-camwow12realm3abc")
+  local after = 0
+  for _ in pairs(ns.db.shared) do after = after + 1 end
+  assert(after == before and #S.WhoWants(66).group == 0 and #S.WhoWants(66).guild == 0, "your own echoes aren't someone else")
+  S.Receive("Needy", "L:1:300:ROGUE:1:1:66", "GUILD", "Oxe-Dawnbeard")
+  S.Receive("Needy", "L:1:301:ROGUE:1:1:67", "GUILD", "Oxe Dawnbeard-camwow1realm2x")
+  local g = S.WhoWants(67).guild
+  assert(#g == 1 and g[1].name == "Oxe Dawnbeard" and #S.WhoWants(66).guild == 0, "one person however the name's spelt")
+  S.Receive("Needy", "L:1:9:PRIEST:1:1:68", "PARTY", "Pip-Brightwater")
+  w = S.WhoWants(68)
+  assert(#w.group == 1 and w.group[1].name == "Pip Brightwater", "a group member with a surname is in the group")
+  GetNormalizedRealmName = realRealm
+  UnitName = realUnitName
+  IsInGroup, GetNumGroupMembers, UnitExists = nil, nil, nil
 
   -- The tooltip: only on DungeonJournal's loot rows, listing who wants it.
   local lines = {}
@@ -763,6 +791,17 @@ run = lua.eval("""function(ns)
   tip.owner = CreateFrame("Button")
   for _, hook in ipairs(__tooltipHooks) do hook(tip, { id = 55 }) end
   assert(#lines == 0, "other tooltips are left alone")
+
+  -- /needy share reports; /needy share send says hello and sends at once, even straight after a send.
+  S.Receive("Needy", "H:1", "GUILD", "Tester-Realm")
+  SlashCmdList.NEEDY("share")
+  for k in pairs(__sent) do __sent[k] = nil end
+  SlashCmdList.NEEDY("share send")
+  __flush(10)
+  local now = sent("GUILD")
+  assert(#now == 2 and now[1] == "H:1" and now[2]:match("^L:1:"), "share send: a hello and the list")
+  SlashCmdList.NEEDY("share")
+
   S.Forget()
   ns.Wishlist.Clear()
   return #awards
