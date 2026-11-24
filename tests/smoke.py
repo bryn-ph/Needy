@@ -466,7 +466,8 @@ run = lua.eval("""function(ns)
   ns.Wishlist.Clear()
 
   -- The big number is yours, labelled, even when the history names you with your realm; the winner is on
-  -- the result line. Pass, and it's the winner's number. Your number arriving late is waited for.
+  -- the result line. Pass, and there's no animation: the line says you passed. Your number arriving late is
+  -- waited for.
   ns.settings.animations = true
   local nextID = 9200
   local function result(rolls, winner, later)
@@ -490,9 +491,13 @@ run = lua.eval("""function(ns)
   assert(n == "45" and label == "You" and visible, "your number, labelled You: " .. tostring(n) .. " " .. tostring(label))
   assert(lost.status:GetText():find("Won by") and lost.status:GetText():find("87"), "the winner's roll is on the line")
   assert(lost.statusWidth <= ns.settings.barWidth - 55 - 112, "the result line stops short of the number")
+  local function animated(bar) return bar.rollAnim:IsShown() or bar.rollLabel:IsShown() end
   local passed = result({ Tester = { choice = "pass" }, Grim = { choice = "need", roll = 87 } }, "Grim")
-  n, label = shown(passed)
-  assert(n == "87" and label == "Winner", "no roll of yours: the winner's, labelled Winner")
+  assert(not animated(passed), "you passed: no roll animation")
+  assert(passed.status:GetText():find("You passed") and passed.status:GetText():find("87"),
+    "you passed: the line says so, then the winner and their roll")
+  local watched = result({ Grim = { choice = "need", roll = 87 } }, "Grim")
+  assert(not animated(watched) and not watched.status:GetText():find("You passed"), "not in the roll: just the winner")
   local late = result({ Tester = { choice = "need" }, Grim = { choice = "need", roll = 87 } }, "Grim", function(drop, bar)
     assert(bar.status:GetText():find("Rolling"), "waits for your number")
     drop.rolls.Tester.roll = 12
@@ -501,8 +506,7 @@ run = lua.eval("""function(ns)
   n, label = shown(late)
   assert(n == "12" and label == "You", "your late number is shown")
   local never = result({ Tester = { choice = "need" }, Grim = { choice = "need", roll = 87 } }, "Grim")
-  n, label = shown(never)
-  assert(n == "87" and label == "Winner", "gives up on a number that never comes")
+  assert(not animated(never) and never.status:GetText():find("Won by"), "gives up on a number that never comes")
   local st = ns.Titles.Stats({ drops = { { key = "z", winner = "Grim", rolls = {
     ["Tester-Realm"] = { choice = "need", roll = 3, isSelf = true }, Grim = { choice = "need", roll = 90 } } } } })
   assert(st["Tester-Realm"].isSelf and not st.Grim.isSelf, "stats know which player is you")

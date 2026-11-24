@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.1-beta
+
+`/reload` is enough after updating.
+
+- If you pass, or aren't in a roll, the roll animation no longer plays with the winner's number. The bar just says **You passed** and shows the winner and their roll. The animation now only ever shows your own number.
+
 ## v0.3.0-beta
 
 Fully restart the game after updating: this version adds a new file, which `/reload` doesn't load.
