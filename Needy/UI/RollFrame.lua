@@ -416,7 +416,7 @@ local function createBar()
 	grow:SetSmoothing("OUT")
 
 	bar.rollAnim = RollFrame.CreateRollAnimation(bar)
-	-- Says whose number the roll animation shows ("You" or "Winner"); appears as it lands.
+	-- "You", beside your number in the roll animation; appears as it lands.
 	bar.rollLabel = W.Text(bar, "GameFontNormalSmall")
 	bar.rollLabel:SetPoint("RIGHT", bar, "RIGHT", -74, -8)
 	bar.rollLabel:SetJustifyH("RIGHT")
@@ -561,26 +561,15 @@ local function myRoll(bar, drop)
 	return mine, number
 end
 
--- Play Blizzard's roll animation over the bar: your roll, labelled "You" (green if you won, red if not),
--- or if you didn't roll, the winner's in white, labelled "Winner". The result line always names the
--- winner and their roll. Returns false if there's no number to show or no animation.
-local function playRollAnimation(bar, drop, myNumber, mine)
+-- Play Blizzard's roll animation over the bar with your roll, labelled "You" (green if you won, red if
+-- not). Only for your own number: if you passed or didn't roll, there's no animation, just the result
+-- line, which always names the winner and their roll. Returns false if it didn't play.
+local function playRollAnimation(bar, myNumber, mine)
 	local anim = bar.rollAnim
-	if not anim then return false end
-	local number, color, label
-	if myNumber then
-		number = myNumber
-		color = bar.youWon and "ff33ff33" or "ffff3333"
-		label = "You"
-	else
-		local w = drop.rolls[drop.winner or ""]
-		number = w and w.roll
-		color = "ffffffff"
-		label = "Winner"
-	end
-	if not number then return false end
-	anim.RollNumber:SetText(("|c%s%d|r"):format(color, number))
-	bar.rollLabel:SetText(label)
+	if not anim or not myNumber then return false end
+	local color = bar.youWon and "ff33ff33" or "ffff3333"
+	anim.RollNumber:SetText(("|c%s%d|r"):format(color, myNumber))
+	bar.rollLabel:SetText("You")
 	anim:Show()
 	anim.group:Stop()
 	anim.group:Play()
@@ -614,15 +603,17 @@ local function showResult(bar)
 	end
 	bar.awaitMineUntil = nil
 	bar.resultShown = true
-	if ns.settings.animations and not drop.allPassed and playRollAnimation(bar, drop, myNumber, mine) then
+	if ns.settings.animations and not drop.allPassed and playRollAnimation(bar, myNumber, mine) then
 		bar.revealAt = GetTime() + REVEAL_TIME
 		fitText(bar, false) -- keep the result line clear of the number
 		bar.status:SetText(("|c%sRolling...|r"):format(W.GREY_HEX))
 		bar.fadeAt = bar.revealAt + RESULT_LINGER
 	else
-		-- No animation: your number leads the line instead.
+		-- No animation: your number, or your pass, leads the line instead.
 		if myNumber and not bar.youWon then
 			bar.resultText = ("|c%sYou %d|r   "):format(W.GOLD_HEX, myNumber) .. bar.resultText
+		elseif not myNumber and not drop.allPassed and (mine and mine.choice or bar.roll.myChoice) == "pass" then
+			bar.resultText = ("|c%sYou passed|r   "):format(W.GREY_HEX) .. bar.resultText
 		end
 		bar.status:SetText(bar.resultText)
 		markWon(bar)
