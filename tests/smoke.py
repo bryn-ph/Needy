@@ -82,6 +82,15 @@ function Obj:Click() local f = self.__scripts.OnClick; if f then f(self, "LeftBu
 function Obj:CreateAnimationGroup() return newObj("AnimationGroup") end
 function Obj:CreateAnimation() return newObj("Animation") end
 function Obj:GetPoint() return "CENTER", nil, "CENTER", 0, 0 end
+function Obj:SetBackdrop(b) self.__backdrop = b end
+function Obj:SetBackdropColor(r, g, b, a) self.__bg = { r, g, b, a } end
+function Obj:SetBackdropBorderColor(r, g, b, a) self.__edge = { r, g, b, a } end
+function Obj:SetVertexColor(r, g, b, a) self.__color = { r, g, b, a } end
+function Obj:SetAtlas(a) self.__atlas = a end
+function Obj:SetValue(v) self.__value = v end
+function Obj:SetFontObject(f) self.__font = f end
+function Obj:SetPoint(...) self.__points = self.__points or {}; table.insert(self.__points, { ... }) end
+function Obj:ClearAllPoints() self.__points = {} end
 
 __frames = {}
 function CreateFrame(kind, name, parent, template)
@@ -490,7 +499,8 @@ run = lua.eval("""function(ns)
   local n, label, visible = shown(lost)
   assert(n == "45" and label == "You" and visible, "your number, labelled You: " .. tostring(n) .. " " .. tostring(label))
   assert(lost.status:GetText():find("Won by") and lost.status:GetText():find("87"), "the winner's roll is on the line")
-  assert(lost.statusWidth <= ns.settings.barWidth - 55 - 112, "the result line stops short of the number")
+  local th = ns.Themes.Current()
+  assert(lost.statusWidth <= ns.settings.barWidth - th.text.left - th.anim.reserve, "the result line stops short of the number")
   local function animated(bar) return bar.rollAnim:IsShown() or bar.rollLabel:IsShown() end
   local passed = result({ Tester = { choice = "pass" }, Grim = { choice = "need", roll = 87 } }, "Grim")
   assert(not animated(passed), "you passed: no roll animation")
@@ -510,6 +520,148 @@ run = lua.eval("""function(ns)
   local st = ns.Titles.Stats({ drops = { { key = "z", winner = "Grim", rolls = {
     ["Tester-Realm"] = { choice = "need", roll = 3, isSelf = true }, Grim = { choice = "need", roll = 90 } } } } })
   assert(st["Tester-Realm"].isSelf and not st.Grim.isSelf, "stats know which player is you")
+
+  -- Themes: bars, the handle and the Roll Log change look at once, including bars already up and pooled.
+  -- Each theme has its own art, sizes and fonts.
+  ns.settings.animations = false
+  local gold = ns.Widgets.GOLD
+  local function isGold(c) return c and c[1] == gold[1] and c[2] == gold[2] and c[3] == gold[3] end
+  local function shownAll(parts) for _, t in ipairs(parts) do if not t:IsShown() then return false end end return true end
+  local function hiddenAll(parts) for _, t in ipairs(parts) do if t:IsShown() then return false end end return true end
+  assert(ns.settings.theme == "original", "Original is the default look")
+  local plainOld = result({ Grim = { choice = "need" } }, nil)
+  local qr0, qg0, qb0 = ns.QualityColor(3)
+  assert(plainOld.__backdrop and plainOld.__backdrop.edgeFile:find("UI%-Tooltip%-Border") and plainOld.icon.style == "native"
+    and not plainOld.toast and not plainOld.strip, "Original: the tooltip box and the game's icon frame, as before")
+  assert(plainOld.__edge[1] == qr0 and plainOld.__edge[3] == qb0 and plainOld.__bg[4] == 0.85, "with the quality border")
+  ns.settings.theme = "blizzard"
+  ns.RollFrame.ApplySettings()
+  local up = result({ Grim = { choice = "need" } }, nil)
+  local done = result({ Grim = { choice = "need", roll = 50 } }, "Grim")
+  assert(done.timer:IsShown() and done.timer.__value == 0 and not done.counting, "a finished roll keeps its timer, emptied")
+  local fresh = roll(9301, 4244)
+  assert(fresh.timer:IsShown() and fresh.counting and fresh.timer.__value > 0, "a new roll's timer is full and counting")
+  assert(up.toast and shownAll(up.toast.panel) and shownAll(up.toast.border) and up.__backdrop == nil,
+    "Blizzard: the game's roll popup art, no backdrop")
+  assert(up.icon.style == "toast" and up.icon.border.__atlas == "loottoast-itemborder-blue", "Blizzard: the quality icon border")
+  assert(isGold(up.toast.border[1].__color) == false, "the border takes the quality colour")
+  local r, g, b = ns.Themes.TimerColor(0.1)
+  assert(r == 1 and g == 1 and b == 0, "Blizzard: the yellow timer")
+  local blizzardWidth = up.statusWidth
+  ns.settings.theme = "modern"
+  ns.RollFrame.ApplySettings()
+  assert(hiddenAll(up.toast.panel) and hiddenAll(up.toast.border) and up.__backdrop, "a bar that's up switches theme")
+  assert(up.strip:IsShown() and up.wash:IsShown() and up.icon.style == "flat" and up.icon.edge:IsShown()
+    and not up.icon.border:IsShown(), "Modern: strip, wash and a flat icon edge")
+  assert(up.name.__font == _G.NeedyModernName and up.status.__font == _G.NeedyModernSmall, "Modern: its own fonts")
+  r, g, b = ns.Themes.TimerColor(0.1)
+  assert(r == 1 and g < 0.5, "Modern: the timer runs green to red")
+  local qr, _, qb = ns.QualityColor(3)
+  assert(up.strip.__color[1] == qr and up.strip.__color[3] == qb, "the strip takes the quality colour")
+  assert(up.__edge[4] == 0, "a plain item has no border")
+  ns.Wishlist.Toggle(4243, "Wanted Thing")
+  local wish = roll(9300, 4243)
+  assert(isGold(wish.__edge) and wish.__edge[4] == 1 and isGold(wish.strip.__color), "a wishlist bar goes gold")
+  ns.Wishlist.Clear()
+  assert(wish.__edge[4] == 0, "and back when it's off the list")
+  assert(_G.NeedyAnchor.needyTheme == "modern", "the handle follows")
+  SlashCmdList.NEEDY("test")
+  __flush(0.5)
+  ns.RollLog.Refresh()
+  assert(_G.NeedyLog.needyTheme == "modern", "the Roll Log follows")
+  ns.settings.theme = "minimal"
+  ns.RollFrame.ApplySettings()
+  assert(not up.strip:IsShown() and up.wash:IsShown() and up.__backdrop == nil, "Minimal: no box, just the shadow")
+  assert(up.icon.style == "none" and not up.icon.border:IsShown() and not up.icon.edge:IsShown(), "Minimal: a bare icon")
+  assert(up.name.__font == _G.NeedyMinimalName, "Minimal: its own fonts")
+  assert(up.statusWidth > blizzardWidth, "Minimal's text has more room than Blizzard's inset box")
+  assert(_G.NeedyLog.needyTheme == "minimal", "the Roll Log follows again")
+  ns.settings.theme = "blizzard"
+  ns.RollFrame.ApplySettings()
+  assert(shownAll(up.toast.panel) and up.icon.style == "toast" and up.icon.border:IsShown() and not up.wash:IsShown()
+    and not up.strip:IsShown() and up.name.__font == "GameFontNormal", "and back to Blizzard")
+  assert(up.statusWidth == blizzardWidth, "with its text box as before")
+  NeedyDB.settings.theme = "sparkly"
+  ns.DB.Init()
+  assert(ns.settings.theme == "original", "an unknown theme falls back to Original")
+
+  -- A wipe: releasing puts you outside as a ghost. The run, and its Roll Log, carry on when you run back.
+  time = function() return 100000 + GetTime() end
+  local ghost, inside = false, true
+  UnitIsDeadOrGhost = function() return ghost end
+  IsInInstance = function() if inside then return true, "party" end return false, "none" end
+  GetInstanceInfo = function()
+    if inside then return "Deep Cave", "party", 1, "Normal", 5, 0, false, 36 end
+    return "Elwynn", "none", 0, "", 0, 0, false, 0
+  end
+  local function world() ef.__scripts.OnEvent(ef, "PLAYER_ENTERING_WORLD") end
+  local function event(name) ef.__scripts.OnEvent(ef, name) end
+  world()
+  local run = ns.Tracker.session
+  assert(run and run.instanceID == 36, "a run starts inside")
+  ns.Fire("DROP_UPDATE", { key = "wipe1", link = "|Hitem:5::::|h[Boot]|h", winner = "Grim",
+    rolls = { Grim = { choice = "need", roll = 50 } } })
+  assert(#run.drops == 1, "a drop is recorded")
+  _G.NeedySummary:Hide()
+  ghost, inside = true, false
+  world()
+  assert(ns.Tracker.session == run and run.away and not run.endTime, "released outside as a ghost: the run carries on")
+  assert(_G.NeedyLogTab:IsShown() and not _G.NeedySummary:IsShown(), "the Roll Log stays, and no report")
+  event("ZONE_CHANGED_NEW_AREA")
+  assert(ns.Tracker.session == run, "still on, running back through other zones")
+  ghost, inside = false, true
+  world()
+  event("PLAYER_UNGHOST")
+  __flush(3)
+  assert(ns.Tracker.session == run and not run.away and #run.drops == 1, "back inside: the same run, drops and all")
+
+  -- The spirit healer instead: alive outside, the run waits a while for you, then ends.
+  ghost, inside = true, false
+  world()
+  ghost = false
+  event("PLAYER_ALIVE")
+  __flush(3)
+  assert(ns.Tracker.session == run and run.graceUntil, "alive outside: the run waits")
+  event("ZONE_CHANGED_NEW_AREA")
+  assert(ns.Tracker.session == run, "walking back alive")
+  __flush(5 * 60 + 2)
+  assert(ns.Tracker.session == nil and run.endTime, "not back in time: the run ends")
+
+  -- Dying again on the way back in waits for the next life; going back in carries on.
+  inside = true
+  world()
+  local again = ns.Tracker.session
+  ghost, inside = true, false
+  world()
+  ghost = false
+  event("PLAYER_ALIVE")
+  __flush(3)
+  ghost = true
+  world()
+  assert(again.away and not again.graceUntil, "died again: no clock running")
+  __flush(5 * 60 + 2)
+  assert(ns.Tracker.session == again, "and the run's still on")
+  ghost, inside = false, true
+  world()
+  assert(ns.Tracker.session == again and not again.away, "back in")
+
+  -- Leaving alive ends the run at once, as before; so does going into another instance while away.
+  inside = false
+  world()
+  assert(ns.Tracker.session == nil and again.endTime, "leaving alive ends it")
+  inside = true
+  world()
+  local third = ns.Tracker.session
+  ghost, inside = true, false
+  world()
+  GetInstanceInfo = function() return "Other Place", "party", 1, "Normal", 5, 0, false, 99 end
+  ghost, inside = false, true
+  world()
+  assert(third.endTime and ns.Tracker.session ~= third and ns.Tracker.session.instanceID == 99,
+    "a different instance: the old run ends, a new one starts")
+  inside = false
+  world()
+  IsInInstance = function() return false, "none" end
   return #awards
 end""")
 try:

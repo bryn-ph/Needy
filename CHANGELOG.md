@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.0-beta
+
+Fully restart the game after updating: this version adds a new file, which `/reload` doesn't load.
+
+- **Themes** (Roll Frame settings), each with its own art, size and fonts:
+  - **Original** (the default): the bars as they've always looked.
+  - **Blizzard**: the game's own roll popup, with its panel, its border in the item's quality colour, the quality icon border and the yellow timer.
+  - **Modern**: a flat dark card, the item's colour washing in from a strip down the side, a narrow font and a thin timer line along the bottom.
+  - **Minimal**: a slim, see-through strip of shadowed text and small buttons, with no box.
+  They change the roll bars and the Roll Log; windows keep the game's look.
+- When a roll ends, its timer now stays, emptied, rather than vanishing.
+- **Wipes no longer end the run.** Releasing puts you at a graveyard outside the instance, which Needy took as leaving: the Roll Log started again and the Run Report could pop up. Now a run you leave as a ghost carries on when you run back in. If you take the spirit healer instead, it waits 5 minutes for you to return before ending. Going into a different instance, or leaving alive, still ends it as before.
+- **Tidier settings.** A **Test rolls** button at the top of every tab, to try a change straight away. The Roll Frame tab is split into *Look* and *Position*, with *Reset position* beside *Lock position*. The General tab groups *History*, *Testing* and *Data*. Buttons explain themselves when you hover over them.
+
 ## v0.3.1-beta
 
 `/reload` is enough after updating.

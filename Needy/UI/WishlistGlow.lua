@@ -80,6 +80,10 @@ function WishlistGlow.Create(bar, icon)
 	-- With animations off it's just the halo and the mark.
 	function f:Start(animate)
 		self:Show()
+		-- The bar and icon sizes depend on the theme.
+		local size = icon:GetWidth() * 52 / 38
+		self.halo:SetSize(size, size)
+		self.sheen:SetHeight(math.max(16, bar:GetHeight() - 8))
 		self.halo:SetAlpha(animate and 0 or 1)
 		if not animate then return end
 		self.travel:SetOffset(ns.settings.barWidth - SHEEN_WIDTH - 2 * EDGE, 0)
