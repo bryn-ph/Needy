@@ -144,6 +144,19 @@ journal.DB = { ["Deep Cave"] = { bosses = {
   { name = "Recipes", recipeTab = true, loot = { { 4242, "Shiny Hat", "Head", 3 } } },
   { name = "Big Troll", loot = { { 4242, "Shiny Hat", "Head", 3 } } },
 } } }
+__sent = {}
+__lockdown = false
+C_ChatInfo = {
+  RegisterAddonMessagePrefix = function() return 0 end,
+  InChatMessagingLockdown = function() return __lockdown end,
+  SendAddonMessage = function(prefix, text, channel) __sent[#__sent + 1] = { prefix = prefix, text = text, channel = channel }; return 0 end,
+}
+function IsInGuild() return true end
+function GetGuildInfo() return "The Guild" end
+function GetNormalizedRealmName() return "Realm" end
+Enum = { TooltipDataType = { Item = 0 } }
+__tooltipHooks = {}
+TooltipDataProcessor = { AddTooltipPostCall = function(_, fn) __tooltipHooks[#__tooltipHooks + 1] = fn end }
 function RollOnLoot(id, t) __lastRoll = { id, t } end
 
 local nextItem = 0
@@ -662,6 +675,96 @@ run = lua.eval("""function(ns)
   inside = false
   world()
   IsInInstance = function() return false, "none" end
+
+  -- Sharing: your list goes out once your edits settle; others' lists come in, in parts, newest wins;
+  -- hellos get one answer; nothing goes out in lockdown; their names show in DungeonJournal tooltips.
+  local function sent(channel)
+    local out = {}
+    for _, m in ipairs(__sent) do if m.channel == channel and m.prefix == "Needy" then out[#out + 1] = m.text end end
+    return out
+  end
+  for k in pairs(__sent) do __sent[k] = nil end
+  ns.Wishlist.Toggle(4242, "Shiny Hat")
+  ns.Wishlist.Toggle(77, "Boot")
+  __flush(10)
+  local guildOut = sent("GUILD")
+  assert(#guildOut == 1 and guildOut[1]:match("^L:1:%d+:MAGE:1:1:77,4242$"), "one list after a run of edits: " .. tostring(guildOut[1]))
+
+  local S = ns.Sharing
+  S.Receive("Needy", "L:1:100:WARRIOR:1:2:11,12", "GUILD", "Grim-Realm")
+  assert(#S.WhoWants(12).guild == 0, "half a list isn't used")
+  S.Receive("Needy", "L:1:100:WARRIOR:2:2:13", "GUILD", "Grim-Realm")
+  local who = S.WhoWants(13)
+  assert(#who.guild == 1 and who.guild[1].name == "Grim-Realm" and who.guild[1].class == "WARRIOR", "a whole list is")
+  S.Receive("Needy", "L:1:99:WARRIOR:1:1:55", "GUILD", "Grim-Realm")
+  assert(#S.WhoWants(55).guild == 0 and #S.WhoWants(13).guild == 1, "an older list is ignored")
+  S.Receive("Needy", "L:1:101:WARRIOR:1:1:55", "GUILD", "Grim")
+  assert(#S.WhoWants(55).guild == 1 and #S.WhoWants(13).guild == 0, "a newer one replaces it (same person, realm or not)")
+  S.Receive("Needy", "L:1:5:MAGE:1:1:55", "GUILD", "Tester-Realm")
+  S.Receive("Needy", "L:1:5:MAGE:1:1:55", "WHISPER", "Other-Realm")
+  S.Receive("Other", "L:1:5:MAGE:1:1:55", "GUILD", "Other-Realm")
+  for _, junk in ipairs({ "L:1:x:MAGE:1:1:5", "L:1:5:MAGE:2:1:5", "L:1:5:MAGE:1:99:5", "L:2:5:MAGE:1:1:5", "L:1:5:mage:1:1:5", "L:1:5:MAGE:1:1:5;6", "" }) do
+    S.Receive("Needy", junk, "GUILD", "Junk-Realm")
+  end
+  assert(#S.WhoWants(55).guild == 1, "ignores you, whispers, other prefixes and malformed lists")
+  assert(ns.db.shared["Grim-Realm"] and not ns.db.shared["Junk-Realm"], "kept between sessions")
+
+  for k in pairs(__sent) do __sent[k] = nil end
+  __advance(120)
+  S.Receive("Needy", "H:1", "GUILD", "Grim-Realm")
+  S.Receive("Needy", "H:1", "GUILD", "Saffi-Realm")
+  __flush(15)
+  assert(#sent("GUILD") == 1, "two hellos get one answer")
+  S.Receive("Needy", "H:1", "GUILD", "Pip-Realm")
+  __flush(15)
+  assert(#sent("GUILD") == 1, "and not again straight away")
+
+  for k in pairs(__sent) do __sent[k] = nil end
+  __lockdown = true
+  ns.settings.shareWishlist = false
+  S.SettingChanged()
+  __flush(10)
+  assert(#sent("GUILD") == 0, "nothing goes out in lockdown")
+  __lockdown = false
+  __flush(20)
+  local off = sent("GUILD")
+  assert(#off == 1 and off[1]:match("^L:1:%d+:MAGE:1:1:$"), "sharing off sends an empty list once lockdown lifts: " .. tostring(off[1]))
+  ns.settings.shareWishlist = true
+
+  -- Joining a group: a hello and your list go to the group, and group members are listed apart from the guild.
+  for k in pairs(__sent) do __sent[k] = nil end
+  IsInGroup = function() return true end
+  GetNumGroupMembers = function() return 2 end
+  UnitExists = function(unit) return unit == "party1" end
+  GetUnitName = function(unit) return unit == "party1" and "Pip" or nil end
+  local ef = __frames[1]
+  ef.__scripts.OnEvent(ef, "GROUP_ROSTER_UPDATE")
+  __flush(10)
+  local party = sent("PARTY")
+  assert(#party == 2 and party[1] == "H:1" and party[2]:match("^L:1:"), "joining a group says hello and shares")
+  S.Receive("Needy", "L:1:7:PRIEST:1:1:55", "PARTY", "Pip-Realm")
+  local w = S.WhoWants(55)
+  assert(#w.group == 1 and w.group[1].name == "Pip-Realm" and #w.guild == 1, "group members listed apart from guildmates")
+  ef.__scripts.OnEvent(ef, "GROUP_ROSTER_UPDATE")
+  __flush(10)
+  assert(#sent("PARTY") == 2, "a roster update without anyone new sends nothing")
+  IsInGroup, GetNumGroupMembers, UnitExists, GetUnitName = nil, nil, nil, nil
+
+  -- The tooltip: only on DungeonJournal's loot rows, listing who wants it.
+  local lines = {}
+  local tip = { GetOwner = function(self) return self.owner end, AddLine = function(_, text) lines[#lines + 1] = text end }
+  local djRow = CreateFrame("Button")
+  djRow.icon = djRow:CreateTexture()
+  ForeverDungeonJournal_NS.UpdateFavouriteIndicator(djRow, 55)
+  tip.owner = djRow
+  for _, hook in ipairs(__tooltipHooks) do hook(tip, { id = 55 }) end
+  assert(table.concat(lines, "|"):find("Wanted by") and table.concat(lines, "|"):find("Guild:.*Grim"), "the tooltip names guildmates")
+  for k in pairs(lines) do lines[k] = nil end
+  tip.owner = CreateFrame("Button")
+  for _, hook in ipairs(__tooltipHooks) do hook(tip, { id = 55 }) end
+  assert(#lines == 0, "other tooltips are left alone")
+  S.Forget()
+  ns.Wishlist.Clear()
   return #awards
 end""")
 try:

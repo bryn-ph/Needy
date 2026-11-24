@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Shared wishlists**: hover an item in DungeonJournal to see which guildmates and group members (with Needy) have it on their wishlist. Your list is shared the same way: just the item IDs, in hidden addon messages that never show in chat. Turn it off with *Share my wishlist* on the Wishlist tab.
+
 ## v0.4.0-beta
 
 Fully restart the game after updating: this version adds a new file, which `/reload` doesn't load.

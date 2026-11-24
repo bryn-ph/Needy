@@ -160,6 +160,8 @@ local function buildPages()
 	-- Wishlist -----------------------------------------------------------------
 	p = newPage("wishlist", "Wishlist", "The items this character is after. When one comes up for a roll, its bar lights up.")
 	p:Check("Wishlist sound", "A fanfare when an item on your wishlist comes up for a roll.", "wishlistSound")
+	p:Check("Share my wishlist", "Guildmates and group members who use Needy see that you're after an item when they hover it in DungeonJournal, and you see theirs. Only the items are shared, in hidden addon messages. Turning this off tells them your list is empty.", "shareWishlist",
+		function() ns.Sharing.SettingChanged() end)
 	local tracked = p:Header("Tracked items")
 	p:Fill(ns.WishlistPanel.Create(p, PAGE_WIDTH, tracked))
 

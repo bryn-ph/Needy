@@ -13,6 +13,7 @@ A loot roll overhaul for **WoW: Forever**. Needy replaces the need/greed/pass po
 - Roll History for the current and past runs.
 - Run Awards when you leave the instance, for whoever stood out.
 - Run Stats next to the awards: the run's totals, and every player's wins, choices, rolls and luck.
+- Shared wishlists: hover an item in DungeonJournal to see which guildmates and group members want it too.
 - A per-character Wishlist, if you have the DungeonJournal addon: its bar lights up, with a fanfare, when an item on it comes up for a roll.
 - Test mode, so you can try it all outside an instance.
 

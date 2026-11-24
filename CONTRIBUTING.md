@@ -15,7 +15,7 @@ New-Item -ItemType Junction -Path "$wow\Interface\AddOns\Needy" -Target "$PWD\Ne
 
 | Path | |
 |---|---|
-| `Needy/Core/` | Namespace, events and the internal message bus (`Init`), settings and saved variables (`Defaults`, `DB`), the loot API adapter (`LootSource`), runs (`Tracker`), the per-character wishlist (`Wishlist`) and the awards and stats maths (`Titles`) |
+| `Needy/Core/` | Namespace, events and the internal message bus (`Init`), settings and saved variables (`Defaults`, `DB`), the loot API adapter (`LootSource`), runs (`Tracker`), the per-character wishlist (`Wishlist`), wishlists shared over addon messages (`Sharing`, protocol at the top of the file) and the awards and stats maths (`Titles`) |
 | `Needy/UI/` | Widgets (`Widgets`), the themes for the bars and Roll Log (`Themes`), roll bars (`RollFrame`, with `WishlistGlow` for wanted items), the optional glow round new bars (`BarFlash`), the Wishlist tab's list (`WishlistPanel`), the Roll Log tab (`RollLog`), the History window and the Run Report (`SummaryWindow`, with `StatsPage` as its second tab) |
 | `Needy/Integrations/` | Optional hooks into other addons (`DungeonJournal`) |
 | `Needy/Config/` | The settings window, minimap icon and slash commands |

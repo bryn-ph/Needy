@@ -10,6 +10,7 @@ ns.Defaults = {
 	animations = true, -- the game's need-roll dice animation on results, pop-in for new bars
 	flashBars = false, -- a glow round each roll bar as it appears
 	theme = "original", -- look of the roll bars and Roll Log (UI/Themes.lua)
+	shareWishlist = true, -- tell guild and group (Needy users) which items you're after
 	wishlistSound = true, -- a fanfare when a wishlist item comes up for a roll
 	showLog = true, -- small on-screen list of this run's drops
 	logRows = 8,

@@ -36,6 +36,22 @@ local function cleanItems(saved)
 	return out
 end
 
+-- When the list last changed. Never goes backwards, and moves on every change.
+local function touch()
+	NeedyCharDB.wishlistRev = math.max(time(), Wishlist.Rev() + 1)
+end
+
+function Wishlist.Rev()
+	local rev = NeedyCharDB and NeedyCharDB.wishlistRev
+	return type(rev) == "number" and rev or 0
+end
+
+-- Something about what we share changed without the list changing (the share setting).
+function Wishlist.Touch()
+	touch()
+	ns.Fire("WISHLIST_CHANGED")
+end
+
 function Wishlist.Has(id)
 	return validID(id) and items[id] ~= nil
 end
@@ -48,11 +64,13 @@ function Wishlist.Toggle(id, name, parts)
 	else
 		items[id] = { name = name, parts = parts and #parts > 0 and parts or nil }
 	end
+	touch()
 	ns.Fire("WISHLIST_CHANGED")
 end
 
 function Wishlist.Clear()
 	for id in pairs(items) do items[id] = nil end
+	touch()
 	ns.Fire("WISHLIST_CHANGED")
 end
 

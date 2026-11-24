@@ -97,7 +97,7 @@ add("debug", "toggle debug output", function()
 	ns.Print("debug " .. (ns.debug and "on" or "off"))
 end)
 
-add("reset", "forget saved runs, settings and this character's wishlist", function(arg)
+add("reset", "forget saved runs, settings, this character's wishlist and others' shared lists", function(arg)
 	if arg ~= "confirm" then
 		ns.Print("This deletes every saved run and this character's wishlist, and resets settings. Type |cffffd100/needy reset confirm|r to go ahead.")
 		return
@@ -105,6 +105,7 @@ add("reset", "forget saved runs, settings and this character's wishlist", functi
 	ns.DB.Reset()
 	ns.Tracker.Reset()
 	ns.Wishlist.Clear()
+	ns.Sharing.Forget()
 	ns.RollFrame.ResetPosition()
 	ns.RollLog.ResetPosition()
 	ns.RollFrame.ApplySettings()

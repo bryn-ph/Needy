@@ -5,6 +5,8 @@
 --   ShowItemFavouriteMenu(owner, item, dungeon, boss, quest) opens the menu; item = { id, name, slot,
 --     quality }, with item.from = { { id, name, boss }, ... } for an item combined from drops.
 --   UpdateFavouriteIndicator(row, itemID) runs whenever an item row is filled in.
+--   Its item tooltip is the game's (SetHyperlink on GameTooltip), so the game's item-tooltip callback adds
+--     who else wants the item, on its loot rows only.
 --   DB[dungeon].bosses[i] = { name, recipeTab, loot = { item, ... } }, with ORDER listing the dungeons; read
 --     to say where an item on the list drops.
 local _, ns = ...
@@ -19,6 +21,7 @@ local BUTTON_HEIGHT = 22
 local MENU_PAD = 4
 local MENU_WIDTH = 190
 local MARK_SIZE = 14
+local MAX_NAMES = 6 -- per line; the rest are counted
 
 local hooked -- its table, once hooked
 local sources -- itemID -> where it drops, built on first use
@@ -170,6 +173,43 @@ function DungeonJournal.Source(id)
 	return { text = text, quality = s.quality }
 end
 
+local function nameList(people)
+	local names = {}
+	for i = 1, math.min(#people, MAX_NAMES) do
+		names[i] = ns.ColorName(people[i].name, people[i].class)
+	end
+	local text = table.concat(names, ", ")
+	if #people > MAX_NAMES then
+		text = text .. ("  |c%s+%d more|r"):format(W.GREY_HEX, #people - MAX_NAMES)
+	end
+	return text
+end
+
+-- Group members and guildmates (with Needy) who have the hovered loot row's item on their wishlist.
+local function addWanters(tooltip)
+	local owner = tooltip and tooltip.GetOwner and tooltip:GetOwner()
+	local id = owner and marked[owner]
+	if not id or id <= 0 then return end
+	local who = ns.Sharing.WhoWants(id)
+	if #who.group == 0 and #who.guild == 0 then return end
+	tooltip:AddLine(" ")
+	tooltip:AddLine(("|T%s:12:12|t Wanted by"):format(ns.Wishlist.MARK), W.GOLD[1], W.GOLD[2], W.GOLD[3])
+	if #who.group > 0 then
+		tooltip:AddLine(("|c%sGroup:|r %s"):format(W.GREY_HEX, nameList(who.group)), 1, 1, 1, true)
+	end
+	if #who.guild > 0 then
+		tooltip:AddLine(("|c%sGuild:|r %s"):format(W.GREY_HEX, nameList(who.guild)), 1, 1, 1, true)
+	end
+end
+
+local function hookTooltips()
+	if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+		TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, addWanters)
+	elseif GameTooltip then
+		hooksecurefunc(GameTooltip, "SetHyperlink", addWanters)
+	end
+end
+
 -- Called at login, when every addon has loaded. Returns whether the hook went in.
 function DungeonJournal.Init()
 	local journal = _G.ForeverDungeonJournal_NS
@@ -187,6 +227,7 @@ function DungeonJournal.Init()
 		ns.Listen("WISHLIST_CHANGED", function()
 			for row in pairs(marked) do showMark(row) end
 		end)
+		hookTooltips()
 	end
 	return true
 end
