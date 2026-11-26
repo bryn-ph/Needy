@@ -26,6 +26,7 @@ local function cleanSettings(saved)
 		end
 	end
 	if ns.Themes and not ns.Themes.Valid(out.theme) then out.theme = ns.Defaults.theme end
+	if out.wantsFrom ~= "group" and out.wantsFrom ~= "guild" then out.wantsFrom = ns.Defaults.wantsFrom end
 	for _, key in ipairs({ "position", "logPosition" }) do
 		local pos = saved[key]
 		if type(pos) == "table" and type(pos[1]) == "string" and type(pos[2]) == "string"

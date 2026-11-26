@@ -187,8 +187,6 @@ local function createTab()
 		if s then
 			GameTooltip:AddLine(ns.HistoryWindow.SessionLabel(s), GOLD[1], GOLD[2], GOLD[3])
 		end
-		GameTooltip:AddLine("Click to " .. (ns.settings.logCollapsed and "open" or "close") .. ". Drag to move.", 1, 1, 1)
-		GameTooltip:AddLine("Right-click for the full history.", 0.6, 0.6, 0.6)
 		GameTooltip:Show()
 	end)
 	tab:SetScript("OnLeave", function() GameTooltip:Hide() end)

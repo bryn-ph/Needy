@@ -15,8 +15,8 @@ New-Item -ItemType Junction -Path "$wow\Interface\AddOns\Needy" -Target "$PWD\Ne
 
 | Path | |
 |---|---|
-| `Needy/Core/` | Namespace, events and the internal message bus (`Init`), settings and saved variables (`Defaults`, `DB`), the loot API adapter (`LootSource`), runs (`Tracker`), the per-character wishlist (`Wishlist`) and the awards and stats maths (`Titles`) |
-| `Needy/UI/` | Widgets (`Widgets`), the themes for the bars and Roll Log (`Themes`), roll bars (`RollFrame`, with `WishlistGlow` for wanted items), the optional glow round new bars (`BarFlash`), the Wishlist tab's list (`WishlistPanel`), the Roll Log tab (`RollLog`), the History window and the Run Report (`SummaryWindow`, with `StatsPage` as its second tab) |
+| `Needy/Core/` | Namespace, events and the internal message bus (`Init`), settings and saved variables (`Defaults`, `DB`), the loot API adapter (`LootSource`), runs (`Tracker`), the per-character wishlist (`Wishlist`), wishlists shared over addon messages (`Sharing`, protocol at the top of the file) and the awards and stats maths (`Titles`) |
+| `Needy/UI/` | Widgets (`Widgets`), the themes for the bars and Roll Log (`Themes`), roll bars (`RollFrame`, with `WishlistGlow` for wanted items), the optional glow round new bars (`BarFlash`), the Wishlist tab's two lists, yours and everyone's (`WishlistPanel`), the Roll Log tab (`RollLog`), the History window and the Run Report (`SummaryWindow`, with `StatsPage` as its second tab) |
 | `Needy/Integrations/` | Optional hooks into other addons (`DungeonJournal`) |
 | `Needy/Config/` | The settings window, minimap icon and slash commands |
 | `Needy/Test/` | Test mode: fake rolls and a fake party |
@@ -48,6 +48,7 @@ CI runs both on every push and pull request, and builds the release zip without 
 ## Generated files
 
 - `Needy/Media/icon.tga` and `assets/logo.png`: the addon icon, from `tools\gen_icon.py` (source art `assets/rolling-dices.png`, CC BY 3.0, see README).
+- `Needy/Media/mark.tga`: the wishlist heart, drawn by the same script in the icon's red and gold.
 
 ## Debugging
 

@@ -54,6 +54,7 @@ end)
 --   DROP_UPDATE(drop)         someone's choice/roll/winner changed for a drop
 --   SESSION_START(session) / SESSION_END(session)
 --   WISHLIST_CHANGED()
+--   SHARED_WISHLISTS_CHANGED()   someone else's list arrived
 
 local listeners = {}
 
@@ -82,6 +83,7 @@ ns.On("ADDON_LOADED", function(_, name)
 	ns.LootSource.Init()
 	ns.Tracker.Init()
 	ns.Wishlist.Init()
+	ns.Sharing.Init()
 	ns.RollFrame.Init()
 	ns.RollLog.Init()
 	ns.SettingsWindow.Register()
@@ -91,5 +93,5 @@ end)
 
 -- Referenced by the TOC's AddonCompartmentFunc.
 function Needy_OnAddonCompartmentClick()
-	ns.SettingsWindow.Toggle()
+	ns.SettingsWindow.Toggle("wishlist")
 end

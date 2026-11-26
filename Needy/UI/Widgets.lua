@@ -133,7 +133,7 @@ function Widgets.ItemIcon(parent, size)
 		if self.edge then self.edge:SetShown(style == "flat") end
 		self:SetItem(self.icon:GetTexture(), self.quality)
 	end
-	-- The wishlist diamond on the icon's corner.
+	-- The wishlist heart on the icon's corner.
 	function f:SetWished(wished)
 		if wished and not self.mark then
 			local markSize = math.max(11, math.floor(size * 0.42))
@@ -147,12 +147,13 @@ function Widgets.ItemIcon(parent, size)
 	return f
 end
 
--- The purple "Wishlist" tag.
+-- The "Wishlist" tag, in the heart's red and gold.
 function Widgets.WishTag(parent)
 	local tag = CreateFrame("Frame", nil, parent, "BackdropTemplate")
 	tag:SetBackdrop(Widgets.FLAT_BACKDROP)
-	tag:SetBackdropColor(0.64, 0.21, 0.93, 0.28) -- the diamond's purple
-	tag:SetBackdropBorderColor(0.74, 0.4, 1, 0.8)
+	local red, rim = ns.Wishlist.RED, ns.Wishlist.RIM
+	tag:SetBackdropColor(red[1], red[2], red[3], 0.45)
+	tag:SetBackdropBorderColor(rim[1], rim[2], rim[3], 0.8)
 	local mark = tag:CreateTexture(nil, "ARTWORK")
 	mark:SetTexture(ns.Wishlist.MARK)
 	mark:SetSize(10, 10)
@@ -191,7 +192,7 @@ end
 function Widgets.Tip(owner, title, text)
 	GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
 	GameTooltip:SetText(title, 1, 1, 1)
-	GameTooltip:AddLine(text, nil, nil, nil, true)
+	if text then GameTooltip:AddLine(text, nil, nil, nil, true) end
 	GameTooltip:Show()
 end
 
@@ -361,6 +362,56 @@ function Widgets.Tabs(win, name, items, onClick)
 			if def[1] == key and PanelTemplates_SetTab then PanelTemplates_SetTab(self, i) end
 		end
 	end
+end
+
+-- Tabs along the top of a list, as on the game's Macro window (PanelTopTabButtonTemplate). items =
+-- { { key, text }, ... }; onClick(key) runs on a click. Returns their holder, with :Select(key) to light
+-- one up and :SetLabel(key, text), which resizes the tab to fit. Anchor the holder's BOTTOMLEFT.
+local TOP_TAB_PAD = 12
+
+function Widgets.TopTabs(parent, items, onClick)
+	local holder = CreateFrame("Frame", nil, parent)
+	holder:SetSize(10, 24)
+	holder.Tabs = {}
+	holder.tabPadding = TOP_TAB_PAD
+	holder.minTabWidth = 80
+	local byKey = {}
+	local function fit(tab)
+		if PanelTemplates_TabResize then
+			PanelTemplates_TabResize(tab, TOP_TAB_PAD, nil, holder.minTabWidth)
+		end
+	end
+	for i, def in ipairs(items) do
+		local tab = CreateFrame("Button", nil, holder, "PanelTopTabButtonTemplate")
+		tab:SetID(i)
+		tab:SetText(def[2])
+		if i == 1 then
+			tab:SetPoint("BOTTOMLEFT")
+		else
+			tab:SetPoint("LEFT", holder.Tabs[i - 1], "RIGHT", 2, 0)
+		end
+		tab:SetScript("OnClick", function()
+			onClick(def[1])
+			if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then
+				PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)
+			end
+		end)
+		holder.Tabs[i] = tab
+		byKey[def[1]] = i
+		fit(tab)
+	end
+	if PanelTemplates_SetNumTabs then PanelTemplates_SetNumTabs(holder, #items) end
+	function holder:Select(key)
+		if byKey[key] and PanelTemplates_SetTab then PanelTemplates_SetTab(self, byKey[key]) end
+	end
+	function holder:SetLabel(key, text)
+		local tab = self.Tabs[byKey[key]]
+		if tab and tab:GetText() ~= text then
+			tab:SetText(text)
+			fit(tab)
+		end
+	end
+	return holder
 end
 
 -- A recessed panel (InsetFrameTemplate) for lists.
@@ -567,4 +618,80 @@ function Widgets.FitRoster(fs, drop, width, opts)
 		end
 	end
 	return text -- the most compact form; the fontstring cuts it off with "..." if even that doesn't fit
+end
+
+-- Who else wants an item -------------------------------------------------------------------------------
+-- `who` is ns.Sharing.WhoWants's { group, guild, count }. An item someone in your group wants as well as
+-- you is contested (orange); one only guildmates want too is shared (gold).
+
+Widgets.CONTESTED = { 1, 0.5, 0.1 }
+Widgets.CONTESTED_HEX = "ffff8019"
+
+-- "contested", "shared" or nil, for an item on your wishlist.
+function Widgets.Overlap(who)
+	if #who.group > 0 then return "contested" end
+	if #who.guild > 0 then return "shared" end
+	return nil
+end
+
+local function wantersText(who, limit)
+	local parts = {}
+	for _, key in ipairs({ "group", "guild" }) do
+		local list = who[key]
+		if #list > 0 then
+			local head = ("|c%s%s|r "):format(Widgets.GREY_HEX, key == "group" and "Group:" or "Guild:")
+			if limit == 0 then
+				table.insert(parts, head .. "|cffcfcfcf" .. #list .. "|r")
+			else
+				local names = {}
+				for i = 1, math.min(limit, #list) do names[i] = ns.ColorName(list[i].name, list[i].class) end
+				local text = head .. table.concat(names, ", ")
+				if #list > limit then text = text .. (" |c%s+%d|r"):format(Widgets.GREY_HEX, #list - limit) end
+				table.insert(parts, text)
+			end
+		end
+	end
+	return table.concat(parts, SEPARATOR)
+end
+
+-- "Group: Grimbolt, Saffi · Guild: Pip +3", with fewer names until it fits `width`, then just counts.
+-- Sets fs's text and returns it.
+function Widgets.FitWanters(fs, who, width)
+	local most = math.max(#who.group, #who.guild)
+	for _, limit in ipairs({ most, 4, 3, 2, 1, 0 }) do
+		if limit <= most then
+			local text = wantersText(who, limit)
+			fs:SetText(text)
+			if Widgets.StringWidth(fs) <= width then return text end
+		end
+	end
+	return fs:GetText()
+end
+
+local TIP_NAMES = 8 -- per line; the rest are counted
+
+-- Adds "Wanted by" lines to a tooltip that's showing the item. mine: it's on your wishlist too.
+-- Returns whether it added anything.
+function Widgets.AddWanters(tooltip, who, mine)
+	if who.count == 0 then return false end
+	tooltip:AddLine(" ")
+	local head = ("|T%s:12:12|t "):format(ns.Wishlist.MARK)
+	if mine then
+		local c = #who.group > 0 and Widgets.CONTESTED or Widgets.GOLD
+		tooltip:AddLine(head .. ("You and %d other%s want this"):format(who.count, who.count == 1 and "" or "s"), c[1], c[2], c[3])
+	else
+		tooltip:AddLine(head .. ("Wanted by %d other%s"):format(who.count, who.count == 1 and "" or "s"),
+			Widgets.GOLD[1], Widgets.GOLD[2], Widgets.GOLD[3])
+	end
+	for _, key in ipairs({ "group", "guild" }) do
+		local list = who[key]
+		if #list > 0 then
+			local names = {}
+			for i = 1, math.min(#list, TIP_NAMES) do names[i] = ns.ColorName(list[i].name, list[i].class) end
+			local text = table.concat(names, ", ")
+			if #list > TIP_NAMES then text = text .. ("  |c%s+%d more|r"):format(Widgets.GREY_HEX, #list - TIP_NAMES) end
+			tooltip:AddLine(("|c%s%s|r %s"):format(Widgets.GREY_HEX, key == "group" and "Group:" or "Guild:", text), 1, 1, 1, true)
+		end
+	end
+	return true
 end

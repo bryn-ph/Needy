@@ -72,13 +72,11 @@ local function luckTooltip(self)
 			GameTooltip:AddDoubleLine("Expected", ("%.1f"):format(s.expected))
 			GameTooltip:AddDoubleLine("Luck", text, nil, nil, nil, r, g, b)
 		else
-			GameTooltip:AddLine("Never in with a chance, so no luck to judge.", nil, nil, nil, true)
+			GameTooltip:AddLine("No contested rolls.", nil, nil, nil, true)
 		end
 	else
 		GameTooltip:SetText("Luck", 1, 1, 1)
-		GameTooltip:AddLine("Items won, compared with what even odds would give. One of three people needing "
-			.. "expects a third of the item. Greeding on something another player needed doesn't count against you.",
-			nil, nil, nil, true)
+		GameTooltip:AddLine("Items won vs. even odds.", nil, nil, nil, true)
 	end
 	GameTooltip:Show()
 end

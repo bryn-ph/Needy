@@ -30,13 +30,15 @@ add("end", "end the current run now and hand out the awards", function()
 	end
 end)
 
-add("test", "[more | wish | end | run | keep] try it out with a fake party", function(arg)
+add("test", "[more | wish | share | end | run | keep] try it out with a fake party", function(arg)
 	if arg == "" or arg == "start" then
 		ns.TestMode.Start(3)
 	elseif arg == "more" then
 		ns.TestMode.Start(2)
 	elseif arg == "wish" then
 		ns.TestMode.Wish()
+	elseif arg == "share" then
+		ns.TestMode.Share()
 	elseif arg == "end" or arg == "stop" then
 		ns.TestMode.End()
 	elseif arg == "run" then
@@ -45,7 +47,7 @@ add("test", "[more | wish | end | run | keep] try it out with a fake party", fun
 		ns.settings.keepTestSessions = not ns.settings.keepTestSessions
 		ns.Print("Test runs will " .. (ns.settings.keepTestSessions and "be saved to" or "not be saved to") .. " history.")
 	else
-		ns.Print("/needy test, /needy test more, /needy test wish, /needy test end, /needy test run, /needy test keep")
+		ns.Print("/needy test, /needy test more, /needy test wish, /needy test share, /needy test end, /needy test run, /needy test keep")
 	end
 end)
 
@@ -92,12 +94,20 @@ add("minimap", "show or hide the minimap icon", function()
 	ns.Print("Minimap icon " .. (ns.settings.minimapShow and "shown." or "hidden. /needy minimap brings it back."))
 end)
 
+add("share", "[send] what wishlist sharing has sent and heard; send sends your list now", function(arg)
+	if arg == "send" then
+		ns.Sharing.SendNow()
+	else
+		ns.Sharing.Status()
+	end
+end)
+
 add("debug", "toggle debug output", function()
 	ns.debug = not ns.debug
 	ns.Print("debug " .. (ns.debug and "on" or "off"))
 end)
 
-add("reset", "forget saved runs, settings and this character's wishlist", function(arg)
+add("reset", "forget saved runs, settings, this character's wishlist and others' shared lists", function(arg)
 	if arg ~= "confirm" then
 		ns.Print("This deletes every saved run and this character's wishlist, and resets settings. Type |cffffd100/needy reset confirm|r to go ahead.")
 		return
@@ -105,6 +115,7 @@ add("reset", "forget saved runs, settings and this character's wishlist", functi
 	ns.DB.Reset()
 	ns.Tracker.Reset()
 	ns.Wishlist.Clear()
+	ns.Sharing.Forget()
 	ns.RollFrame.ResetPosition()
 	ns.RollLog.ResetPosition()
 	ns.RollFrame.ApplySettings()

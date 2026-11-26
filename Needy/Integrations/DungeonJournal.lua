@@ -1,10 +1,14 @@
 -- Optional hook into DungeonJournal (folder ForeverDungeonJournal, by Exehn): a Needy Wishlist entry on the
--- right-click menu of its loot, and a mark on items that are on the list.
+-- right-click menu of its loot, a mark on items that are on the list, and a badge counting the group members
+-- and guildmates who want each item (their names are in its tooltip).
 -- Written against DungeonJournal 2.1.3. It only post-hooks functions on that addon's shared table, and does
 -- nothing if they aren't there.
 --   ShowItemFavouriteMenu(owner, item, dungeon, boss, quest) opens the menu; item = { id, name, slot,
 --     quality }, with item.from = { { id, name, boss }, ... } for an item combined from drops.
---   UpdateFavouriteIndicator(row, itemID) runs whenever an item row is filled in.
+--   UpdateFavouriteIndicator(row, itemID) runs whenever an item row is filled in. Its own star sits at the
+--     row's right edge (RIGHT -8, 15px); the badge goes just left of it.
+--   Its item tooltip is the game's (SetHyperlink on GameTooltip), so the game's item-tooltip callback adds
+--     who else wants the item, on its loot rows only.
 --   DB[dungeon].bosses[i] = { name, recipeTab, loot = { item, ... } }, with ORDER listing the dungeons; read
 --     to say where an item on the list drops.
 local _, ns = ...
@@ -19,6 +23,8 @@ local BUTTON_HEIGHT = 22
 local MENU_PAD = 4
 local MENU_WIDTH = 190
 local MARK_SIZE = 14
+local BADGE_HEIGHT = 15
+local BADGE_RIGHT = -28 -- clear of DungeonJournal's favourite star
 
 local hooked -- its table, once hooked
 local sources -- itemID -> where it drops, built on first use
@@ -82,8 +88,56 @@ local function extendMenu(journal, item, quest)
 	menu:SetSize(math.max(MENU_WIDTH, W.StringWidth(entry.text) + MARK_SIZE + 32), 2 * BUTTON_HEIGHT + 3 * MENU_PAD)
 end
 
+local function createBadge(row)
+	local b = CreateFrame("Frame", nil, row, "BackdropTemplate")
+	b:SetBackdrop(W.FLAT_BACKDROP)
+	b:SetHeight(BADGE_HEIGHT)
+	b:SetPoint("RIGHT", row, "RIGHT", BADGE_RIGHT, 0)
+	b:EnableMouse(false) -- the row keeps its hover and clicks
+	b.mark = b:CreateTexture(nil, "ARTWORK")
+	b.mark:SetTexture(ns.Wishlist.MARK)
+	b.mark:SetSize(10, 10)
+	b.mark:SetPoint("LEFT", 3, 0)
+	b.text = W.Text(b, "GameFontHighlightSmall")
+	b.text:SetPoint("LEFT", b.mark, "RIGHT", 2, 0)
+	row.needyBadge = b
+	return b
+end
+
+-- How many others want the row's item: orange when someone in your group wants something on your
+-- wishlist too, bright when group members want it, dim when it's only guildmates.
+local function showBadge(row)
+	local id = marked[row]
+	local who = ns.settings.journalBadges and id and id > 0 and ns.Sharing.WhoWants(id)
+	if not who or who.count == 0 then
+		if row.needyBadge then row.needyBadge:Hide() end
+		return
+	end
+	local b = row.needyBadge or createBadge(row)
+	b.text:SetText(who.count)
+	b:SetWidth(W.StringWidth(b.text) + 19)
+	if ns.Wishlist.Has(id) and W.Overlap(who) == "contested" then
+		local c = W.CONTESTED
+		b:SetBackdropColor(c[1], c[2], c[3], 0.35)
+		b:SetBackdropBorderColor(c[1], c[2], c[3], 1)
+		b.text:SetTextColor(1, 1, 1)
+	elseif #who.group > 0 then
+		local red, rim = ns.Wishlist.RED, ns.Wishlist.RIM
+		b:SetBackdropColor(red[1], red[2], red[3], 0.6)
+		b:SetBackdropBorderColor(rim[1], rim[2], rim[3], 1)
+		b.text:SetTextColor(1, 1, 1)
+	else
+		local red, rim = ns.Wishlist.RED, ns.Wishlist.RIM
+		b:SetBackdropColor(red[1] * 0.5, red[2] * 0.5, red[3] * 0.5, 0.5)
+		b:SetBackdropBorderColor(rim[1] * 0.6, rim[2] * 0.6, rim[3] * 0.6, 0.8)
+		b.text:SetTextColor(0.8, 0.8, 0.8)
+	end
+	b:Show()
+end
+
 local function showMark(row)
 	if row.needyMark then row.needyMark:SetShown(ns.Wishlist.Has(marked[row])) end
+	showBadge(row)
 end
 
 local function markRow(row, itemID)
@@ -114,7 +168,8 @@ local function addSource(item, dungeon, boss)
 	-- An item's boss counts for more than the Recipes & Patterns page that lists it again.
 	local recipePage = boss.recipeTab and true or false
 	if not s or (s.recipePage and not recipePage) then
-		s = { dungeon = dungeon, boss = boss.name, recipePage = recipePage, quality = tonumber(item[4]), seen = {}, count = 0 }
+		s = { dungeon = dungeon, boss = boss.name, recipePage = recipePage, quality = tonumber(item[4]), seen = {}, count = 0,
+			name = type(item[2]) == "string" and item[2] or nil }
 		sources[id] = s
 	elseif recipePage ~= s.recipePage then
 		return
@@ -159,7 +214,7 @@ function DungeonJournal.IsHooked()
 	return hooked ~= nil
 end
 
--- Where an item drops, as { text, quality }; nil if DungeonJournal can't say.
+-- Where an item drops, as { text, quality, name }; nil if DungeonJournal can't say.
 function DungeonJournal.Source(id)
 	if not hooked then return nil end
 	if not sources then buildSources() end
@@ -167,7 +222,45 @@ function DungeonJournal.Source(id)
 	if not s then return nil end
 	local text = ("%s - %s"):format(localDungeon(s.dungeon), s.boss)
 	if s.count > 1 then text = ("%s (+%d more)"):format(text, s.count - 1) end
-	return { text = text, quality = s.quality }
+	return { text = text, quality = s.quality, name = s.name }
+end
+
+-- Group members and guildmates (with Needy) who have the hovered loot row's item on their wishlist.
+local function addWanters(tooltip)
+	local owner = tooltip and tooltip.GetOwner and tooltip:GetOwner()
+	local id = owner and marked[owner]
+	if not id or id <= 0 then return end
+	W.AddWanters(tooltip, ns.Sharing.WhoWants(id), ns.Wishlist.Has(id))
+end
+
+-- Some items DungeonJournal lists, for test mode's pretend wishlists.
+function DungeonJournal.SampleItems(count)
+	if not hooked then return {} end
+	if not sources then buildSources() end
+	local ids = {}
+	for id, s in pairs(sources) do
+		if not s.recipePage and (s.quality or 0) >= 2 then table.insert(ids, id) end
+	end
+	table.sort(ids)
+	for i = #ids, 2, -1 do
+		local j = math.random(i)
+		ids[i], ids[j] = ids[j], ids[i]
+	end
+	for i = #ids, count + 1, -1 do ids[i] = nil end
+	return ids
+end
+
+-- Redraw the marks and badges on the rows DungeonJournal has on screen.
+function DungeonJournal.Refresh()
+	for row in pairs(marked) do showMark(row) end
+end
+
+local function hookTooltips()
+	if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+		TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, addWanters)
+	elseif GameTooltip then
+		hooksecurefunc(GameTooltip, "SetHyperlink", addWanters)
+	end
 end
 
 -- Called at login, when every addon has loaded. Returns whether the hook went in.
@@ -184,9 +277,9 @@ function DungeonJournal.Init()
 	hooked = journal
 	if type(journal.UpdateFavouriteIndicator) == "function" then
 		hooksecurefunc(journal, "UpdateFavouriteIndicator", markRow)
-		ns.Listen("WISHLIST_CHANGED", function()
-			for row in pairs(marked) do showMark(row) end
-		end)
+		ns.Listen("WISHLIST_CHANGED", DungeonJournal.Refresh)
+		ns.Listen("SHARED_WISHLISTS_CHANGED", DungeonJournal.Refresh)
+		hookTooltips()
 	end
 	return true
 end

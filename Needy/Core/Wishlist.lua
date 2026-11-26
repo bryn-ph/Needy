@@ -5,7 +5,11 @@ local _, ns = ...
 local Wishlist = {}
 ns.Wishlist = Wishlist
 
-Wishlist.MARK = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_3" -- purple diamond; stars mean favourites
+-- A crimson heart with a gold rim, in the logo's colours (tools/gen_icon.py). Not dice: those mean Need.
+Wishlist.MARK = "Interface\\AddOns\\" .. ns.name .. "\\Media\\mark"
+-- The heart's red and gold, for tags and badges that go with it.
+Wishlist.RED = { 0.62, 0.1, 0.12 }
+Wishlist.RIM = { 0.86, 0.66, 0.22 }
 
 local SOUND_GAP = 1 -- seconds: items dropping together get one fanfare
 
@@ -36,6 +40,22 @@ local function cleanItems(saved)
 	return out
 end
 
+-- When the list last changed. Never goes backwards, and moves on every change.
+local function touch()
+	NeedyCharDB.wishlistRev = math.max(time(), Wishlist.Rev() + 1)
+end
+
+function Wishlist.Rev()
+	local rev = NeedyCharDB and NeedyCharDB.wishlistRev
+	return type(rev) == "number" and rev or 0
+end
+
+-- Something about what we share changed without the list changing (the share setting).
+function Wishlist.Touch()
+	touch()
+	ns.Fire("WISHLIST_CHANGED")
+end
+
 function Wishlist.Has(id)
 	return validID(id) and items[id] ~= nil
 end
@@ -48,11 +68,13 @@ function Wishlist.Toggle(id, name, parts)
 	else
 		items[id] = { name = name, parts = parts and #parts > 0 and parts or nil }
 	end
+	touch()
 	ns.Fire("WISHLIST_CHANGED")
 end
 
 function Wishlist.Clear()
 	for id in pairs(items) do items[id] = nil end
+	touch()
 	ns.Fire("WISHLIST_CHANGED")
 end
 
