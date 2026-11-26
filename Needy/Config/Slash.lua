@@ -30,13 +30,15 @@ add("end", "end the current run now and hand out the awards", function()
 	end
 end)
 
-add("test", "[more | wish | end | run | keep] try it out with a fake party", function(arg)
+add("test", "[more | wish | share | end | run | keep] try it out with a fake party", function(arg)
 	if arg == "" or arg == "start" then
 		ns.TestMode.Start(3)
 	elseif arg == "more" then
 		ns.TestMode.Start(2)
 	elseif arg == "wish" then
 		ns.TestMode.Wish()
+	elseif arg == "share" then
+		ns.TestMode.Share()
 	elseif arg == "end" or arg == "stop" then
 		ns.TestMode.End()
 	elseif arg == "run" then
@@ -45,7 +47,7 @@ add("test", "[more | wish | end | run | keep] try it out with a fake party", fun
 		ns.settings.keepTestSessions = not ns.settings.keepTestSessions
 		ns.Print("Test runs will " .. (ns.settings.keepTestSessions and "be saved to" or "not be saved to") .. " history.")
 	else
-		ns.Print("/needy test, /needy test more, /needy test wish, /needy test end, /needy test run, /needy test keep")
+		ns.Print("/needy test, /needy test more, /needy test wish, /needy test share, /needy test end, /needy test run, /needy test keep")
 	end
 end)
 

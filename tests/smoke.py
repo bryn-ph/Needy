@@ -257,6 +257,12 @@ run = lua.eval("""function(ns)
   SlashCmdList.NEEDY("options")
   assert(_G.NeedySettings:IsShown(), "settings window opens")
   assert(_G.NeedyMinimapButton:IsShown(), "minimap icon shown")
+  _G.NeedySettings:Hide()
+  _G.NeedyMinimapButton.__scripts.OnClick(_G.NeedyMinimapButton, "LeftButton")
+  assert(_G.NeedySettings:IsShown() and ns.SettingsWindow.Current() == "wishlist", "the minimap icon opens the Wishlist tab")
+  _G.NeedyMinimapButton.__scripts.OnClick(_G.NeedyMinimapButton, "LeftButton")
+  assert(not _G.NeedySettings:IsShown(), "and closes it again")
+  SlashCmdList.NEEDY("options")
   SlashCmdList.NEEDY("minimap")
   assert(not _G.NeedyMinimapButton:IsShown(), "/needy minimap hides it")
   SlashCmdList.NEEDY("help")
@@ -791,6 +797,85 @@ run = lua.eval("""function(ns)
   tip.owner = CreateFrame("Button")
   for _, hook in ipairs(__tooltipHooks) do hook(tip, { id = 55 }) end
   assert(#lines == 0, "other tooltips are left alone")
+
+  -- Overlaps. Out of the group, only guildmates count; DungeonJournal's rows get a badge with the count.
+  ef.__scripts.OnEvent(ef, "GROUP_ROSTER_UPDATE")
+  __flush(5)
+  local w55 = S.WhoWants(55)
+  assert(w55.count == 1 and w55.guild[1].name == "Grim" and #w55.group == 0, "out of the group: only guildmates")
+  ns.Wishlist.Toggle(55, "Fifty-five")
+  local badge = djRow.needyBadge
+  assert(badge and badge:IsShown() and badge.text:GetText() == 1, "a DungeonJournal row counts who else wants it")
+  for k in pairs(lines) do lines[k] = nil end
+  tip.owner = djRow
+  for _, hook in ipairs(__tooltipHooks) do hook(tip, { id = 55 }) end
+  assert(table.concat(lines, "|"):find("You and 1 other want this"), "its tooltip says you want it too")
+  ns.settings.journalBadges = false
+  ns.DungeonJournal.Refresh()
+  assert(not badge:IsShown(), "badges can be turned off")
+  ns.settings.journalBadges = true
+  ns.settings.wantsFrom = "group"
+  S.ScopeChanged()
+  assert(S.WhoWants(55).count == 0 and not badge:IsShown(), "From: Group leaves guildmates out")
+  ns.settings.wantsFrom = "guild"
+  S.ScopeChanged()
+  assert(badge:IsShown(), "and Group + guild brings them back")
+
+  -- Test mode's pretend wishlists: two group members (one wanting your first item) and three guildmates,
+  -- never saved.
+  local saved = 0
+  for _ in pairs(ns.db.shared) do saved = saved + 1 end
+  SlashCmdList.NEEDY("test share")
+  assert(S.HasFakes(), "test share adds pretend wishlists")
+  local first = ns.Wishlist.List()[1].id
+  assert(ns.Widgets.Overlap(S.WhoWants(first)) == "contested", "with one of yours contested")
+  local nowSaved = 0
+  for _ in pairs(ns.db.shared) do nowSaved = nowSaved + 1 end
+  assert(nowSaved == saved, "pretend lists aren't saved")
+
+  -- The Wishlist tab: Mine shows who else wants each item, tinting contested ones; Everyone's lists what
+  -- others want, contested ones of yours first, and adds to your list from there.
+  ns.SettingsWindow.Show("wishlist")
+  local panel = ns.WishlistPanel.panel
+  assert(panel.view == "mine", "the tab opens on your own list")
+  local contestedRow
+  for _, r in ipairs(panel.rows) do
+    if r:IsShown() and r.itemID == first then contestedRow = r end
+  end
+  assert(contestedRow and contestedRow.wanters:GetText():find("Group:") and contestedRow.__edge[2] == ns.Widgets.CONTESTED[2],
+    "a contested item says who and goes orange")
+  panel.tabs.Tabs[2].__scripts.OnClick(panel.tabs.Tabs[2])
+  assert(panel.view == "everyone", "switches to Everyone's")
+  local shownRows = 0
+  for _, r in ipairs(panel.rows) do if r:IsShown() then shownRows = shownRows + 1 end end
+  assert(shownRows == #S.Wanted() and shownRows > 0, "one row per item anyone wants")
+  local top = panel.rows[1]
+  assert(ns.Wishlist.Has(top.itemID) and ns.Widgets.Overlap(top.who) == "contested", "contested items of yours come first")
+  local other
+  for i = 1, shownRows do
+    if not ns.Wishlist.Has(panel.rows[i].itemID) then other = panel.rows[i]; break end
+  end
+  local otherID = other.itemID
+  other.toggle.__scripts.OnClick(other.toggle)
+  assert(ns.Wishlist.Has(otherID), "the heart adds an item to your list")
+  ns.Wishlist.Toggle(otherID)
+  SlashCmdList.NEEDY("test share")
+  assert(not S.HasFakes(), "test share again takes them away")
+  local ticked
+  panel.guild.SetChecked = function(_, v) ticked = v end
+  panel.guild.GetChecked = function() return ticked end
+  panel.guild:Refresh()
+  assert(panel.guild:GetChecked(), "Include guildmates is ticked by default")
+  panel.guild:SetChecked(false)
+  panel.guild.__scripts.OnClick(panel.guild)
+  assert(ns.settings.wantsFrom == "group", "untick it and only your group counts")
+  assert(#S.Wanted() == 0 and panel.empty:IsShown() and panel.empty:GetText():find("not in a group"),
+    "Everyone's, From: Group, out of a group: says so")
+  ns.settings.wantsFrom = "guild"
+  S.ScopeChanged()
+  panel.tabs.Tabs[1].__scripts.OnClick(panel.tabs.Tabs[1])
+  ns.Wishlist.Toggle(55)
+  __flush(10) -- the edits above go out before the next checks count messages
 
   -- /needy share reports; /needy share send says hello and sends at once, even straight after a send.
   S.Receive("Needy", "H:1", "GUILD", "Tester-Realm")

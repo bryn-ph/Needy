@@ -203,10 +203,6 @@ local function create()
 	win.empty:SetJustifyH("CENTER")
 	win.empty:SetWidth(380)
 
-	win.hint = W.Text(win, "GameFontDisableSmall")
-	win.hint:SetPoint("BOTTOMLEFT", 14, 12)
-	win.hint:SetText("Hover a row for everyone's rolls. Shift-click an item to link it.")
-
 	win.endRun = W.Button(win, "End run now", 110, 22)
 	win.endRun:SetPoint("BOTTOMRIGHT", -8, 6)
 	win.endRun:SetScript("OnClick", function()
@@ -251,7 +247,7 @@ function HistoryWindow.Refresh()
 	if not s then
 		win.heading:SetText("No runs yet")
 		win.sub:SetText("")
-		win.empty:SetText("Rolls are recorded while you're in a dungeon or raid.\n\nTry |cffffd100/needy test|r to see Needy in action.")
+		win.empty:SetText("No rolls recorded yet.")
 		win.empty:Show()
 		return
 	end

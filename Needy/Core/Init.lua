@@ -93,5 +93,5 @@ end)
 
 -- Referenced by the TOC's AddonCompartmentFunc.
 function Needy_OnAddonCompartmentClick()
-	ns.SettingsWindow.Toggle()
+	ns.SettingsWindow.Toggle("wishlist")
 end

@@ -59,7 +59,7 @@ local function create()
 		if mouse == "RightButton" then
 			ns.HistoryWindow.Toggle()
 		else
-			ns.SettingsWindow.Toggle()
+			ns.SettingsWindow.Toggle("wishlist")
 		end
 	end)
 	button:SetScript("OnMouseDown", function() icon:SetPoint("CENTER", 1, 0) end)
@@ -74,7 +74,7 @@ local function create()
 	button:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_LEFT")
 		GameTooltip:SetText("Needy", 1, 0.82, 0)
-		GameTooltip:AddLine("Left-click: settings", 1, 1, 1)
+		GameTooltip:AddLine("Left-click: wishlist and settings", 1, 1, 1)
 		GameTooltip:AddLine("Right-click: roll history", 1, 1, 1)
 		GameTooltip:AddLine("Drag to move", 0.5, 0.5, 0.5)
 		GameTooltip:Show()

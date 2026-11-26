@@ -32,6 +32,8 @@ local RETRY_RESULTS = { [3] = true, [8] = true, [11] = true } -- throttles, lock
 local CHANNELS = { GUILD = true, PARTY = true, RAID = true, INSTANCE_CHAT = true }
 
 local people -- full name -> { rev, class, items = { [id] = true }, seen, guild }
+local fakes = {} -- test mode's pretend players, never saved: name -> { class, items, where = "group" | "guild" }
+local index -- who wants what, built when asked for and dropped whenever it could have changed
 local partial = {} -- full name -> { rev, class, parts, got, count, at }
 local queue = {}
 local pumping = false
@@ -218,6 +220,7 @@ local function store(sender, msg, channel)
 	local n = 0
 	for _ in pairs(items) do n = n + 1 end
 	ns.Debug("share: got", sender .. "'s list,", n, "items")
+	index = nil
 	ns.Fire("SHARED_WISHLISTS_CHANGED")
 end
 
@@ -288,27 +291,83 @@ end
 
 -- Reading ----------------------------------------------------------------------------------------
 
--- Who else wants an item: { group = { { name, class }, ... }, guild = { ... } }, each sorted by name.
--- Group members come first; guildmates are anyone whose list came over your current guild's channel.
-function Sharing.WhoWants(itemID)
-	local result = { group = {}, guild = {} }
-	if not itemID then return result end
-	local members = groupMembers()
-	local guild = myGuild()
-	for name, person in pairs(people) do
-		if person.items[itemID] then
-			local entry = { name = name, class = person.class }
-			if members[name] then
-				table.insert(result.group, entry)
-			elseif guild and person.guild == guild then
-				table.insert(result.guild, entry)
+local NOBODY = { group = {}, guild = {}, count = 0 }
+
+local function withGuild()
+	return ns.settings.wantsFrom ~= "group"
+end
+
+-- itemID -> { group = { { name, class }, ... }, guild = { ... }, count }, names sorted. Group members are
+-- whoever's in your group now; guildmates are anyone whose list came over your current guild's channel
+-- and who isn't in your group. Guildmates count only when the Wishlist tab's "From" says so.
+local function buildIndex()
+	local out = {}
+	local members, guild, guildToo = groupMembers(), myGuild(), withGuild()
+	local function add(name, class, items, where)
+		if where == "guild" and not guildToo then return end
+		for id in pairs(items) do
+			local e = out[id]
+			if not e then
+				e = { group = {}, guild = {}, count = 0 }
+				out[id] = e
 			end
+			table.insert(e[where], { name = name, class = class })
+			e.count = e.count + 1
 		end
 	end
+	for name, person in pairs(people) do
+		local where = members[name] and "group" or (guild and person.guild == guild and "guild") or nil
+		if where then add(name, person.class, person.items, where) end
+	end
+	for name, fake in pairs(fakes) do add(name, fake.class, fake.items, fake.where) end
 	local byName = function(a, b) return a.name < b.name end
-	table.sort(result.group, byName)
-	table.sort(result.guild, byName)
-	return result
+	for _, e in pairs(out) do
+		table.sort(e.group, byName)
+		table.sort(e.guild, byName)
+	end
+	return out
+end
+
+local function currentIndex()
+	index = index or buildIndex()
+	return index
+end
+
+-- Who else wants an item: { group = { { name, class }, ... }, guild = { ... }, count }. Don't change it.
+function Sharing.WhoWants(itemID)
+	return itemID and currentIndex()[itemID] or NOBODY
+end
+
+-- Everything anyone else wants, as { { id, group, guild, count }, ... } in no particular order.
+function Sharing.Wanted()
+	local list = {}
+	for id, e in pairs(currentIndex()) do
+		table.insert(list, { id = id, group = e.group, guild = e.guild, count = e.count })
+	end
+	return list
+end
+
+-- Who counts changed (the "From" setting): everything that shows it redraws.
+function Sharing.ScopeChanged()
+	index = nil
+	ns.Fire("SHARED_WISHLISTS_CHANGED")
+end
+
+-- Test mode: pretend players' lists (where = "group" or "guild"), or none at all with nil. Never saved
+-- or sent anywhere.
+function Sharing.SetFakes(list)
+	fakes = {}
+	for _, f in ipairs(list or {}) do
+		local items = {}
+		for _, id in ipairs(f.items) do items[id] = true end
+		fakes[f.name] = { class = f.class, items = items, where = f.where }
+	end
+	index = nil
+	ns.Fire("SHARED_WISHLISTS_CHANGED")
+end
+
+function Sharing.HasFakes()
+	return next(fakes) ~= nil
 end
 
 -- Setup --------------------------------------------------------------------------------------------
@@ -338,7 +397,14 @@ local function clean(saved)
 	return out
 end
 
+-- Who's in your group, or your guild, decides which lists count as which.
+local function onWhoChanged()
+	index = nil
+	ns.Fire("SHARED_WISHLISTS_CHANGED")
+end
+
 local function onRoster()
+	onWhoChanged()
 	local size = GetNumGroupMembers and GetNumGroupMembers() or 0
 	local grew = size > groupSize
 	groupSize = size
@@ -403,6 +469,8 @@ end
 
 function Sharing.Forget()
 	for name in pairs(people) do people[name] = nil end
+	fakes = {}
+	index = nil
 	ns.Fire("SHARED_WISHLISTS_CHANGED")
 end
 
@@ -423,6 +491,7 @@ function Sharing.Init()
 	ns.Debug("share: prefix registered", diag.registered)
 	ns.On("CHAT_MSG_ADDON", function(_, ...) Sharing.Receive(...) end)
 	ns.On("GROUP_ROSTER_UPDATE", onRoster)
+	ns.On("PLAYER_GUILD_UPDATE", onWhoChanged)
 	ns.Listen("WISHLIST_CHANGED", onChange)
 	ns.On("PLAYER_LOGIN", function()
 		groupSize = GetNumGroupMembers and GetNumGroupMembers() or 0

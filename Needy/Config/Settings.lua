@@ -7,7 +7,7 @@ ns.SettingsWindow = SettingsWindow
 
 local W = ns.Widgets
 
-local WIDTH, HEIGHT = 500, 480
+local WIDTH, HEIGHT = 600, 540
 local PAD = 18
 local PAGE_WIDTH = WIDTH - PAD * 2 - 16
 
@@ -120,73 +120,71 @@ end
 
 local function buildPages()
 	-- Roll frame ---------------------------------------------------------------
-	local p = newPage("rolls", "Roll Frame", "The bars that pop up when an item is up for need, greed or pass.")
-	p:Check("Replace Blizzard's roll frames", "Hide the default loot roll popups and use Needy's bars.", "replaceBlizzard")
+	local p = newPage("rolls", "Roll Frame")
+	p:Check("Replace Blizzard's roll frames", nil, "replaceBlizzard")
 
 	p:Header("Look")
 	local themes = {}
 	for _, t in ipairs(ns.Themes.LIST) do table.insert(themes, { value = t.key, text = t.name }) end
 	p:Segmented("Theme", themes,
 		function() return ns.Themes.Key() end,
-		function(v) ns.settings.theme = v; ns.RollFrame.ApplySettings() end,
-		"How the roll bars and the Roll Log look. Original: Needy's first look. Blizzard: the game's own roll popup. Modern: a flat dark card, "
-			.. "the item's colour washing in from the side. Minimal: slim and see-through, with no box. Windows keep "
-			.. "the game's look.\n\n"
-			.. "Click Test rolls (top right) to see it.", 280)
+		function(v) ns.settings.theme = v; ns.RollFrame.ApplySettings() end, nil, 280)
 	p:Slider("Scale", "scale", ns.Limits.scale[1], ns.Limits.scale[2], 0.05, function(v) return ("%d%%"):format(v * 100 + 0.5) end)
 	p:Slider("Bar width", "barWidth", ns.Limits.barWidth[1], ns.Limits.barWidth[2], 10, function(v) return tostring(v) end)
-	p:Check("Animations", "Bars pop in, and your roll plays the game's own dice animation.", "animations")
-	p:Check("Flash new roll bars", "A glow breathes round each roll bar as it appears, so you notice it wherever your bars are. It takes the item's quality colour, or gold for wishlist items.", "flashBars",
+	p:Check("Animations", nil, "animations")
+	p:Check("Flash new roll bars", nil, "flashBars",
 		function(on) ns.RollFrame.FlashShown(on) end)
 
 	p:Header("Position")
 	p:Segmented("New bars stack", { { value = false, text = "Downwards" }, { value = true, text = "Upwards" } },
 		function() return ns.settings.growUp end,
 		function(v) ns.settings.growUp = v; ns.RollFrame.ApplySettings() end)
-	local lock = p:Check("Lock position", "Untick to get a handle you can drag the bars with. They snap to the centre of the screen, like Edit Mode.", "locked")
+	local lock = p:Check("Lock position", nil, "locked")
 	local reset = W.Button(p, "Reset position", 120, 22)
 	reset:SetPoint("LEFT", lock.label, "RIGHT", 24, -1)
 	reset:SetScript("OnClick", function() ns.RollFrame.ResetPosition() end)
 
 	-- Roll log -----------------------------------------------------------------
-	p = newPage("log", "Roll Log", "A button on screen during a run. Click it to open a list of everything that's dropped, who won it and with what roll.")
-	p:Check("Show the Roll Log", "Appears while you're in a dungeon or raid (or a test run).", "showLog")
+	p = newPage("log", "Roll Log")
+	p:Check("Show the Roll Log", nil, "showLog")
 	p:Slider("Rows shown", "logRows", ns.Limits.logRows[1], ns.Limits.logRows[2], 1, function(v) return tostring(v) end)
 	p:Buttons({
 		{ "Reset position", function() ns.RollLog.ResetPosition() end, 120 },
-		{ "Open history", function() ns.HistoryWindow.Show() end, 120, "Every run Needy has kept, drop by drop." },
+		{ "Open history", function() ns.HistoryWindow.Show() end, 120 },
 	})
 
 	-- Wishlist -----------------------------------------------------------------
-	p = newPage("wishlist", "Wishlist", "The items this character is after. When one comes up for a roll, its bar lights up.")
-	p:Check("Wishlist sound", "A fanfare when an item on your wishlist comes up for a roll.", "wishlistSound")
-	p:Check("Share my wishlist", "Guildmates and group members who use Needy see that you're after an item when they hover it in DungeonJournal, and you see theirs. Only the items are shared, in hidden addon messages. Turning this off tells them your list is empty.", "shareWishlist",
+	p = newPage("wishlist", "Wishlist")
+	p:Check("Wishlist sound", nil, "wishlistSound")
+	p:Check("Share my wishlist", nil, "shareWishlist",
 		function() ns.Sharing.SettingChanged() end)
-	local tracked = p:Header("Tracked items")
+	p:Check("Count others' wants in DungeonJournal", nil, "journalBadges",
+		function() ns.DungeonJournal.Refresh() end)
+	local tracked = p:Header("Your wishlist")
 	p:Fill(ns.WishlistPanel.Create(p, PAGE_WIDTH, tracked))
 
 	-- End of run ---------------------------------------------------------------
-	p = newPage("awards", "End of Run", "When you leave the instance, Needy hands out titles: Loot Hoarder, Unlucky, The Saint and friends.")
-	p:Check("Show the awards window", "Opens the Run Report on its awards when the run ends. The run's stats are on its second tab.", "showSummary")
+	p = newPage("awards", "End of Run")
+	p:Check("Show the awards window", nil, "showSummary")
 	p:Buttons({
-		{ "Preview", function() ns.TestMode.Run() end, 100, "Makes up a run with a few players and opens its Run Report." },
+		{ "Preview", function() ns.TestMode.Run() end, 100 },
 	})
 
 	-- General ------------------------------------------------------------------
 	p = newPage("general", "General")
-	p:Check("Minimap icon", "Left-click opens settings, right-click opens the roll history.", "minimapShow",
+	p:Check("Minimap icon", nil, "minimapShow",
 		function() ns.MinimapButton.Update() end)
 
 	p:Header("History")
 	p:Slider("Runs kept", "historyLimit", ns.Limits.historyLimit[1], ns.Limits.historyLimit[2], 1, function(v) return tostring(v) end)
-	p:Check("Keep test runs", "Save test runs alongside real ones.", "keepTestSessions")
+	p:Check("Keep test runs", nil, "keepTestSessions")
 
 	p:Header("Testing")
 	p:Buttons({
-		{ "Test rolls", function() ns.TestMode.Start(3) end, 106, "Three practice roll bars, with made-up players rolling too." },
-		{ "Wishlist drop", function() ns.TestMode.Wish() end, 106, "A practice roll for an item on your wishlist." },
-		{ "End test run", function() ns.TestMode.End() end, 106, "Ends the practice run and opens its Run Report." },
-		{ "Simulate run", function() ns.TestMode.Run() end, 106, "Makes up a whole run at once and opens its Run Report." },
+		{ "Test rolls", function() ns.TestMode.Start(3) end, 106 },
+		{ "Wishlist drop", function() ns.TestMode.Wish() end, 106 },
+		{ "End test run", function() ns.TestMode.End() end, 106 },
+		{ "Simulate run", function() ns.TestMode.Run() end, 106 },
 	})
 
 	p:Header("Data")
@@ -235,14 +233,10 @@ local function create()
 	local test = W.Button(win, "Test rolls", 96, 22)
 	test:SetPoint("TOPRIGHT", -10, -30)
 	test:SetScript("OnClick", function() ns.TestMode.Start(3) end)
-	test:SetScript("OnEnter", function(self)
-		W.Tip(self, "Test rolls", "Puts up practice roll bars, to see your settings at work.")
-	end)
-	test:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
 	local version = W.Text(win, "GameFontDisableSmall")
 	version:SetPoint("RIGHT", test, "LEFT", -10, 0)
-	version:SetText("Needy " .. W.Version() .. "   |cff8c8c8c/needy help|r")
+	version:SetText("Needy " .. W.Version())
 	version:SetJustifyH("RIGHT")
 
 	win.inset = W.Inset(win)
@@ -254,9 +248,11 @@ local function create()
 	W.Tabs(win, "NeedySettings", TABS, selectPage)
 	selectPage("rolls")
 	win:HookScript("OnShow", function() SettingsWindow.Refresh() end)
-	ns.Listen("WISHLIST_CHANGED", function()
+	local function refreshWishlist()
 		if win:IsShown() and current == "wishlist" then SettingsWindow.Refresh() end
-	end)
+	end
+	ns.Listen("WISHLIST_CHANGED", refreshWishlist)
+	ns.Listen("SHARED_WISHLISTS_CHANGED", refreshWishlist)
 end
 
 function SettingsWindow.Refresh()
@@ -274,8 +270,14 @@ function SettingsWindow.Show(page)
 	SettingsWindow.Refresh()
 end
 
-function SettingsWindow.Toggle()
-	if win and win:IsShown() then win:Hide() else SettingsWindow.Show() end
+-- Which tab is showing ("rolls", "wishlist", ...).
+function SettingsWindow.Current()
+	return current
+end
+
+-- page: the tab to open on (the last one shown, if not given).
+function SettingsWindow.Toggle(page)
+	if win and win:IsShown() then win:Hide() else SettingsWindow.Show(page) end
 end
 
 -- The game's Settings > AddOns page only holds a button that opens our own window: the game won't open
@@ -289,9 +291,6 @@ function SettingsWindow.Register()
 	local open = W.Button(launcher, "Open Needy settings", 180, 24)
 	open:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -12)
 	open:SetScript("OnClick", function() SettingsWindow.Show() end)
-	local hint = launcher:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	hint:SetPoint("TOPLEFT", open, "BOTTOMLEFT", 0, -10)
-	hint:SetText("Also on the minimap icon, or type /needy help.")
 	local category = Settings.RegisterCanvasLayoutCategory(launcher, "Needy")
 	Settings.RegisterAddOnCategory(category)
 end

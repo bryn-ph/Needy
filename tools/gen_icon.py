@@ -6,6 +6,7 @@ licensed CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/). This script r
 
     assets/logo.png      512x512, for project pages (CurseForge, Wago, GitHub)
     Needy/Media/icon.tga 64x64, the in-game addon icon (TOC IconTexture)
+    Needy/Media/mark.tga 64x64, the wishlist mark: a heart in the same red and gold (drawn, not from the dice)
 
 Usage:
     .venv\\Scripts\\python tools\\gen_icon.py
@@ -18,6 +19,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "assets" / "rolling-dices.png"
 LOGO = ROOT / "assets" / "logo.png"
 TGA = ROOT / "Needy" / "Media" / "icon.tga"
+MARK = ROOT / "Needy" / "Media" / "mark.tga"
 
 SIZE = 512
 BG_CENTRE = (128, 30, 34)  # deep loot red
@@ -92,7 +94,53 @@ def build() -> Image.Image:
     return icon
 
 
+def heart_mask(size: int, scale: float) -> Image.Image:
+    """A filled heart (the classic parametric curve), centred on a size x size canvas."""
+    import math
+
+    pts = []
+    for i in range(720):
+        t = 2 * math.pi * i / 720
+        x = 16 * math.sin(t) ** 3
+        y = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
+        pts.append((x, y))
+    # The curve spans x -16..16 and y -17..12; fit it, flipped so the point is at the bottom.
+    k = size * scale / 34
+    cx, cy = size / 2, size / 2 - 2.5 * k
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).polygon([(cx + x * k, cy - y * k) for x, y in pts], fill=255)
+    return mask
+
+
+def build_mark() -> Image.Image:
+    """The wishlist mark: a crimson heart with a gold rim, in the logo's colours, on transparency."""
+    big = 512
+    outer = heart_mask(big, 0.98)
+    rim = heart_mask(big, 0.86)
+    inner = heart_mask(big, 0.70)
+    mark = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    dark = Image.new("RGBA", (big, big), (20, 6, 4, 255))
+    dark.putalpha(outer)
+    mark.alpha_composite(dark)
+    gold = vertical(big, GOLD_TOP, GOLD_BOTTOM).convert("RGBA")
+    gold.putalpha(rim)
+    mark.alpha_composite(gold)
+    red = vertical(big, (226, 58, 58), (112, 14, 22)).convert("RGBA")
+    red.putalpha(inner)
+    mark.alpha_composite(red)
+    # A soft glint, top left, so it reads as glossy rather than flat.
+    glint = Image.new("L", (big, big), 0)
+    ImageDraw.Draw(glint).ellipse([big * 0.27, big * 0.24, big * 0.43, big * 0.36], fill=150)
+    glint = ImageChops.multiply(glint.filter(ImageFilter.GaussianBlur(big * 0.02)), inner)
+    shine = Image.new("RGBA", (big, big), (255, 235, 220, 255))
+    shine.putalpha(glint)
+    mark.alpha_composite(shine)
+    return mark.resize((64, 64), Image.Resampling.LANCZOS)
+
+
 def main() -> None:
+    build_mark().save(MARK, format="TGA", rle=False)
+    print(f"wrote {MARK.relative_to(ROOT)}")
     icon = build()
     LOGO.parent.mkdir(parents=True, exist_ok=True)
     icon.save(LOGO)

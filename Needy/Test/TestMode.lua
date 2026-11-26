@@ -251,6 +251,33 @@ function TestMode.Wish()
 	TestMode.Start(1, #ids > 0 and ids or nil, true)
 end
 
+-- /needy test share: pretend group members and guildmates with wishlists, some of it overlapping yours, to
+-- try the Wishlist tab's views and DungeonJournal's badges. Again to take them away. Nothing is sent or saved.
+function TestMode.Share()
+	if ns.Sharing.HasFakes() then
+		ns.Sharing.SetFakes(nil)
+		ns.Print("Pretend wishlists gone.")
+		return
+	end
+	local pool = ns.DungeonJournal.SampleItems(30)
+	if #pool == 0 then pool = { unpack(ITEMS) } end
+	local mine = {}
+	for _, item in ipairs(ns.Wishlist.List()) do table.insert(mine, item.id) end
+	local names, classes = shuffle({ unpack(NAMES) }), shuffle({ unpack(CLASSES) })
+	local list = {}
+	for i = 1, 5 do
+		local items = {}
+		for _, id in ipairs(mine) do
+			if math.random() < 0.35 then table.insert(items, id) end
+		end
+		for _ = 1, math.random(3, 7) do table.insert(items, pool[math.random(#pool)]) end
+		table.insert(list, { name = names[i], class = classes[i], items = items, where = i <= 2 and "group" or "guild" })
+	end
+	if mine[1] then table.insert(list[1].items, mine[1]) end -- at least one of yours is contested
+	ns.Sharing.SetFakes(list)
+	ns.Print("Two pretend group members and three guildmates have wishlists now; see the Wishlist tab, or hover items in DungeonJournal. |cffffd100/needy test share|r again takes them away.")
+end
+
 -- The player clicked a button on a fake roll (via LootSource.Choose).
 function TestMode.Choose(roll, choice)
 	local drop = drops[roll.id]
