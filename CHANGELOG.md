@@ -1,8 +1,10 @@
 # Changelog
 
-## v0.5.0-beta
+## v0.6.0-beta
 
-Needs a full game restart, not just /reload.
+- Items come off your wishlist when you get them in a dungeon or raid. Turn this off with Remove items when you get them.
+
+## v0.5.0-beta
 
 - Shared wishlists. See who in your group or guild wants the same items (they need Needy too).
   - DungeonJournal loot rows show how many others want each item. Hover for names.
@@ -17,8 +19,6 @@ Needs a full game restart, not just /reload.
 
 ## v0.4.0-beta
 
-Needs a full game restart.
-
 - Themes for the roll bars and Roll Log: Original (default), Blizzard, Modern and Minimal.
 - The timer stays on the bar after a roll ends instead of disappearing.
 - Fixed: wiping ended the run. Releasing and running back in now keeps the same run. Taking the spirit healer ends it after 5 minutes outside.
@@ -30,14 +30,10 @@ Needs a full game restart.
 
 ## v0.3.0-beta
 
-Needs a full game restart.
-
 - Optional glow around new roll bars (off by default).
 - Fixed: the result sometimes showed the winner's roll instead of yours.
 
 ## v0.2.0-beta
-
-Needs a full game restart.
 
 - Run Stats tab on the end of run report, including luck (items won vs. even odds).
 - Wishlist, if you have DungeonJournal. Right-click an item there to add it. Its roll bar lights up and plays a sound when it drops.
