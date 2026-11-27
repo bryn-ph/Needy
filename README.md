@@ -10,7 +10,7 @@ Beta. Report bugs on [GitHub](https://github.com/bryn-ph/Needy/issues).
 - Four themes: Original, Blizzard, Modern and Minimal.
 - Roll Log during a run, and a history of past runs.
 - Titles and stats at the end of a run.
-- Wishlist (needs DungeonJournal). Items on it light up when they drop.
+- Wishlist (needs DungeonJournal). Items on it light up when they drop, and come off once you get them.
 - Shared wishlists. See who in your group or guild wants the same items.
 - Test mode, to try it outside a dungeon.
 

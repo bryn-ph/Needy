@@ -156,6 +156,7 @@ local function buildPages()
 	-- Wishlist -----------------------------------------------------------------
 	p = newPage("wishlist", "Wishlist")
 	p:Check("Wishlist sound", nil, "wishlistSound")
+	p:Check("Remove items when you get them", nil, "removeOnLoot")
 	p:Check("Share my wishlist", nil, "shareWishlist",
 		function() ns.Sharing.SettingChanged() end)
 	p:Check("Count others' wants in DungeonJournal", nil, "journalBadges",

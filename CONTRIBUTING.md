@@ -9,7 +9,7 @@ $wow = "C:\Program Files (x86)\World of Warcraft\_forever_"
 New-Item -ItemType Junction -Path "$wow\Interface\AddOns\Needy" -Target "$PWD\Needy"
 ```
 
-`/reload` picks up Lua changes. New files and TOC edits need a full client restart.
+`/reload` picks up changes, new files included.
 
 ## Layout
 

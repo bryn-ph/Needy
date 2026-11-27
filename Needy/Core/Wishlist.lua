@@ -1,5 +1,6 @@
 -- The items this character wants. Integrations add to it (see Integrations/DungeonJournal.lua); roll bars
--- light up and a fanfare plays when one comes up for a roll.
+-- light up and a fanfare plays when one comes up for a roll. Getting one during a run (winning its roll, or
+-- looting it outright) takes it off, unless the removeOnLoot setting is off. Test rolls never do.
 local _, ns = ...
 
 local Wishlist = {}
@@ -105,6 +106,50 @@ function Wishlist.Matches(roll)
 	return false
 end
 
+-- You got an item: off the list it comes, if it's on it. link is for the message.
+function Wishlist.Got(id, link)
+	if not ns.settings.removeOnLoot or not validID(id) or not items[id] then return end
+	items[id] = nil
+	touch()
+	ns.Print(("Got %s, so it's off your wishlist."):format(link or ("item " .. id)))
+	ns.Fire("WISHLIST_CHANGED")
+end
+
+-- You won a real roll in a run.
+local function onDrop(drop)
+	if drop.isTest or not ns.Tracker.session or not drop.winner or ns.IsSecret(drop.winner) then return end
+	if ns.IsMe(drop.winner, drop.rolls and drop.rolls[drop.winner]) then
+		Wishlist.Got(ns.ItemIDFromLink(drop.link), drop.link)
+	end
+end
+
+-- The game's own "You receive loot: [item]" lines, as patterns, for items looted without a roll.
+local function selfLootPatterns()
+	local out = {}
+	for _, key in ipairs({ "LOOT_ITEM_SELF_MULTIPLE", "LOOT_ITEM_SELF", "LOOT_ITEM_PUSHED_SELF_MULTIPLE", "LOOT_ITEM_PUSHED_SELF" }) do
+		local fmt = _G[key]
+		if type(fmt) == "string" then
+			local p = fmt:gsub("([%%%(%)%.%+%-%*%?%[%]%^%$])", "%%%1"):gsub("%%%%s", "(.+)"):gsub("%%%%d", "%%d+")
+			table.insert(out, "^" .. p .. "$")
+		end
+	end
+	return out
+end
+
+local lootPatterns
+
+local function onLoot(_, msg)
+	if not ns.Tracker.session or type(msg) ~= "string" or ns.IsSecret(msg) then return end
+	lootPatterns = lootPatterns or selfLootPatterns()
+	for _, p in ipairs(lootPatterns) do
+		if msg:match(p) then
+			local link = msg:match("(|c[^|]*|Hitem:.-|h.-|h|r)") or msg:match("(|Hitem:.-|h.-|h)")
+			Wishlist.Got(ns.ItemIDFromLink(link), link)
+			return
+		end
+	end
+end
+
 local function playFanfare()
 	if not (PlaySound and SOUNDKIT) then return end
 	local now = GetTime()
@@ -122,4 +167,6 @@ function Wishlist.Init()
 	ns.Listen("ROLL_START", function(roll)
 		if ns.settings.wishlistSound and Wishlist.Matches(roll) then playFanfare() end
 	end)
+	ns.Listen("DROP_UPDATE", onDrop)
+	ns.On("CHAT_MSG_LOOT", onLoot)
 end
