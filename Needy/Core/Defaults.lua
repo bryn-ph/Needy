@@ -14,6 +14,7 @@ ns.Defaults = {
 	wantsFrom = "guild", -- whose wishlists count: "group", or "guild" (group and guild)
 	journalBadges = true, -- a count on DungeonJournal's loot rows of how many others want each item
 	wishlistSound = true, -- a fanfare when a wishlist item comes up for a roll
+	removeOnLoot = true, -- take an item off the wishlist when you get it in a run
 	showLog = true, -- small on-screen list of this run's drops
 	logRows = 8,
 	logCollapsed = true, -- the Roll Log starts as just its tab

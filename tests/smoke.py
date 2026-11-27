@@ -680,9 +680,42 @@ run = lua.eval("""function(ns)
   world()
   assert(third.endTime and ns.Tracker.session ~= third and ns.Tracker.session.instanceID == 99,
     "a different instance: the old run ends, a new one starts")
+
+  -- Getting a wishlist item in a run takes it off: winning its roll, or looting it outright.
+  ns.Wishlist.Toggle(5001, "Won Thing")
+  ns.Wishlist.Toggle(5002, "Looted Thing")
+  ns.Wishlist.Toggle(5003, "Their Thing")
+  ns.Fire("DROP_UPDATE", { key = "got1", link = "|Hitem:5001::::|h[Won Thing]|h", winner = "Tester",
+    rolls = { Tester = { choice = "need", roll = 90, isSelf = true } } })
+  assert(not ns.Wishlist.Has(5001), "winning a wishlist item takes it off")
+  ns.Fire("DROP_UPDATE", { key = "got2", link = "|Hitem:5003::::|h[Their Thing]|h", winner = "Grim",
+    rolls = { Grim = { choice = "need", roll = 90 }, Tester = { choice = "need", roll = 3, isSelf = true } } })
+  assert(ns.Wishlist.Has(5003), "someone else winning it doesn't")
+  LOOT_ITEM_SELF = "You receive loot: %s."
+  LOOT_ITEM_SELF_MULTIPLE = "You receive loot: %sx%d."
+  ef.__scripts.OnEvent(ef, "CHAT_MSG_LOOT", "You receive loot: |cff0070dd|Hitem:5002::::|h[Looted Thing]|h|r.")
+  assert(not ns.Wishlist.Has(5002), "looting it outright does too")
+  ef.__scripts.OnEvent(ef, "CHAT_MSG_LOOT", "Grim receives loot: |cff0070dd|Hitem:5003::::|h[Their Thing]|h|r.")
+  assert(ns.Wishlist.Has(5003), "someone else looting it doesn't")
+  ns.Fire("DROP_UPDATE", { key = "got3", link = "|Hitem:5003::::|h[Their Thing]|h", winner = "Tester", isTest = true,
+    rolls = { Tester = { choice = "need", roll = 90, isSelf = true } } })
+  assert(ns.Wishlist.Has(5003), "test rolls never do")
+  ns.settings.removeOnLoot = false
+  ef.__scripts.OnEvent(ef, "CHAT_MSG_LOOT", "You receive loot: |cff0070dd|Hitem:5003::::|h[Their Thing]|h|rx2.")
+  assert(ns.Wishlist.Has(5003), "and nothing comes off with the setting off")
+  ns.settings.removeOnLoot = true
+  ef.__scripts.OnEvent(ef, "CHAT_MSG_LOOT", "You receive loot: |cff0070dd|Hitem:5003::::|h[Their Thing]|h|rx2.")
+  assert(not ns.Wishlist.Has(5003), "several at once counts")
+  __flush(6) -- the list changes go out before the sharing checks count messages
+
   inside = false
   world()
   IsInInstance = function() return false, "none" end
+  ns.Wishlist.Toggle(5004, "Outside Thing")
+  ef.__scripts.OnEvent(ef, "CHAT_MSG_LOOT", "You receive loot: |cff0070dd|Hitem:5004::::|h[Outside Thing]|h|r.")
+  assert(ns.Wishlist.Has(5004), "loot outside a run leaves the list alone")
+  ns.Wishlist.Toggle(5004)
+  __flush(6)
 
   -- Sharing: your list goes out once your edits settle; others' lists come in, in parts, newest wins;
   -- hellos get one answer; nothing goes out in lockdown; their names show in DungeonJournal tooltips.
